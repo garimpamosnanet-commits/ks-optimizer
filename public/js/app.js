@@ -466,12 +466,11 @@ async function renderOptCampaigns() {
             <div class="opt-config-card">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                     <div style="display:flex;align-items:center;gap:10px">
-                        <span class="opt-status-live"><span class="opt-live-dot"></span> Otimizacao Ativa 24/7</span>
-                        ${todayActions > 0 ? `<span class="badge badge-success">${todayActions} otimizacao${todayActions !== 1 ? 'es' : ''} hoje</span>` : '<span class="badge badge-muted">0 otimizacoes hoje</span>'}
+                        <span class="opt-status-live"><span class="opt-live-dot"></span> Otimizando</span>
+                        <span class="badge ${todayActions > 0 ? 'badge-success' : 'badge-muted'}">${todayActions} otimizacao${todayActions !== 1 ? 'es' : ''} hoje</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px">
                         <a href="https://www.facebook.com/adsmanager/manage/campaigns?act=${(config.account_id||'').replace('act_','')}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:4px">↗ Meta</a>
-                        <button class="btn btn-ghost btn-sm" onclick="toggleOptConfig('${config.campaign_id}', false)" style="font-size:11px;color:var(--danger)">Desativar</button>
                     </div>
                 </div>
                 <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:16px">${esc(name)}</div>
@@ -516,11 +515,12 @@ async function renderOptCampaigns() {
                         </label>
                     </div>
 
-                    <!-- OPTIMIZE BUTTON -->
-                    <div style="display:flex;align-items:center;margin-left:auto">
-                        <button class="btn-optimize-green" id="opt-btn-${config.campaign_id}" onclick="runOptimize('${config.campaign_id}')">
-                            <span class="opt-btn-icon">&#9654;</span> Otimizar
+                    <!-- STATUS BUTTON -->
+                    <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+                        <button class="btn-optimize-green running" id="opt-btn-${config.campaign_id}" onclick="runOptimize('${config.campaign_id}')" data-tooltip="Executar otimizacao agora">
+                            <span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${todayActions}</span>
                         </button>
+                        <button class="btn btn-outline btn-sm" onclick="toggleOptConfig('${config.campaign_id}', false)" style="color:var(--danger);border-color:var(--danger)">Pausar</button>
                     </div>
                 </div>
             </div>`;
@@ -539,10 +539,13 @@ async function renderOptCampaigns() {
             return `
             <div class="opt-config-card" style="opacity:0.7">
                 <div class="opt-config-header">
-                    <div class="opt-config-name">${esc(c.name)}</div>
-                    <div style="display:flex;gap:8px">
-                        <span class="badge badge-muted">${c.status}</span>
-                        <button class="btn btn-outline btn-sm" onclick="openOptConfigModal('${c.id}', '${esc(c.name)}', '${_currentAccount}')">Configurar</button>
+                    <div style="flex:1">
+                        <div class="opt-config-name">${esc(c.name)}</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${c.status} | ${c.objective || '--'}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        ${config ? `<button class="btn-optimize-green" onclick="toggleOptConfig('${c.id}', true)" style="padding:10px 20px;font-size:13px"><span>&#9654;</span> Otimizar</button>`
+                        : `<button class="btn-optimize-green" onclick="openOptConfigModal('${c.id}', '${esc(c.name)}', '${_currentAccount}')" style="padding:10px 20px;font-size:13px"><span>&#9654;</span> Otimizar</button>`}
                     </div>
                 </div>
             </div>`;
@@ -683,14 +686,23 @@ let _optimizingCampaigns = {}; // { campaignId: { actions: 0, status: 'running' 
 
 async function runOptimize(campaignId) {
     try {
+        // Mark as executing immediate scan
+        const btn = document.getElementById(`opt-btn-${campaignId}`);
+        if (btn) {
+            btn.innerHTML = '<span class="opt-btn-arrow-up">&#8593;</span> Buscando oportunidades...';
+        }
         _optimizingCampaigns[campaignId] = { actions: 0, status: 'running' };
-        updateOptButton(campaignId);
         showOptProgress();
         await api(`/optimization/run/${campaignId}`, 'POST');
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
-        _optimizingCampaigns[campaignId] = { actions: 0, status: 'error' };
-        updateOptButton(campaignId);
+        // Restore to the persistent "Otimizando..." state
+        const todayActions = _todayOptCounts[campaignId] || 0;
+        const btn = document.getElementById(`opt-btn-${campaignId}`);
+        if (btn) {
+            btn.innerHTML = `<span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${todayActions}</span>`;
+        }
+        delete _optimizingCampaigns[campaignId];
         hideOptProgress();
     }
 }
@@ -962,12 +974,23 @@ function setupSocketListeners() {
     socket.on('optimization_result', (result) => {
         hideOptProgress();
         const cid = result.campaign_id;
-        if (cid && _optimizingCampaigns[cid]) {
-            _optimizingCampaigns[cid].actions = result.successful_actions || 0;
-            _optimizingCampaigns[cid].status = 'done';
-            updateOptButton(cid);
+        const actions = result.successful_actions || 0;
+
+        // Update today's count
+        _todayOptCounts[cid] = (_todayOptCounts[cid] || 0) + actions;
+        delete _optimizingCampaigns[cid];
+
+        // Restore "Otimizando..." button with updated count
+        const btn = document.getElementById(`opt-btn-${cid}`);
+        if (btn) {
+            const total = _todayOptCounts[cid] || 0;
+            btn.innerHTML = `<span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${total}</span>`;
         }
-        showToast(`Otimizacao concluida: ${result.successful_actions || 0} acoes`, 'success');
+
+        // Also update the badge
+        loadOptConfigs();
+
+        showToast(`Concluido: ${actions} otimizacao${actions !== 1 ? 'es' : ''} realizadas`, 'success');
         loadOptLog();
         loadDashboard();
     });

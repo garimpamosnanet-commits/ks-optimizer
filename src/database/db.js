@@ -14,8 +14,8 @@ function getDefaultDb() {
         tags: [],
         settings: {
             token: '',
-            optimization_interval_minutes: 30,
-            auto_optimize: false,
+            optimization_interval_minutes: 15,
+            auto_optimize: true,
             timezone: 'America/Sao_Paulo',
             default_pause_behavior: 'flexible',
             default_scale_method: 'conservative'
