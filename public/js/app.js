@@ -439,50 +439,72 @@ async function renderOptCampaigns() {
     const enabledConfigs = _configs.filter(c => c.enabled);
     const enabledIds = new Set(enabledConfigs.map(c => c.campaign_id));
 
-    // Enabled campaigns (with optimization)
+    // Enabled campaigns — OneClick-style inline cards
     if (enabledConfigs.length === 0) {
-        enabledContainer.innerHTML = '<div class="empty-state"><div class="icon">🤖</div><h3>Nenhuma campanha ativada</h3><p>Configure a otimizacao em uma campanha na aba Campanhas.</p></div>';
+        enabledContainer.innerHTML = '<div class="empty-state"><div class="icon">🤖</div><h3>Nenhuma campanha ativada</h3><p>Ative a otimizacao em uma campanha na aba "Desativadas".</p></div>';
     } else {
         enabledContainer.innerHTML = enabledConfigs.map(config => {
             const campaign = campaigns.find(c => c.id === config.campaign_id);
             const name = campaign ? campaign.name : config.campaign_name || config.campaign_id;
+            const status = campaign ? campaign.status : '';
 
             return `
             <div class="opt-config-card">
-                <div class="opt-config-header">
-                    <div class="opt-config-name">${esc(name)}</div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                        <span class="badge badge-success">Ativada</span>
-                        <button class="btn-optimize" onclick="runOptimize('${config.campaign_id}')" style="padding:8px 16px;font-size:12px">
-                            Otimizar
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Otimizacao Manual</div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <a href="https://www.facebook.com/adsmanager/manage/campaigns?act=${(config.account_id||'').replace('act_','')}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:4px">↗ Meta</a>
+                        <button class="btn btn-ghost btn-sm" onclick="toggleOptConfig('${config.campaign_id}', false)" style="font-size:11px;color:var(--danger)">Desativar</button>
+                    </div>
+                </div>
+                <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:16px">${esc(name)}</div>
+
+                <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+                    <!-- Pause behavior toggle -->
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Comportamento para pausar:</div>
+                        <div style="display:flex;gap:4px;background:var(--bg-secondary);border-radius:var(--radius-sm);padding:3px">
+                            <button class="opt-toggle-btn ${config.pause_behavior === 'rigorous' ? 'active danger' : ''}" onclick="updateOptField('${config.campaign_id}','pause_behavior','rigorous')">Pausa Rigorosa</button>
+                            <button class="opt-toggle-btn ${config.pause_behavior === 'flexible' ? 'active warning' : ''}" onclick="updateOptField('${config.campaign_id}','pause_behavior','flexible')">Pausa Flexivel</button>
+                        </div>
+                    </div>
+
+                    <!-- Scale method toggle -->
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Metodo de escala:</div>
+                        <div style="display:flex;gap:4px;background:var(--bg-secondary);border-radius:var(--radius-sm);padding:3px">
+                            <button class="opt-toggle-btn ${config.scale_method === 'accelerated' ? 'active success' : ''}" onclick="updateOptField('${config.campaign_id}','scale_method','accelerated')">Escala Acelerada</button>
+                            <button class="opt-toggle-btn ${config.scale_method === 'conservative' ? 'active info' : ''}" onclick="updateOptField('${config.campaign_id}','scale_method','conservative')">Escala Conservadora</button>
+                        </div>
+                    </div>
+
+                    <!-- CPA max -->
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Custo por Conversao para PAUSAR (Conjunto de Anuncios)</div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-size:12px;color:var(--text-secondary)">BRL</span>
+                            <input type="number" step="0.01" class="opt-inline-input" id="opt-cpa-${config.campaign_id}" value="${config.max_cpa.toFixed(2)}" onchange="updateOptCpa('${config.campaign_id}', this.value)">
+                        </div>
+                    </div>
+
+                    <!-- Budget max -->
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Orcamento Diario Maximo da Campanha (CBO)</div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-size:12px;color:var(--text-secondary)">BRL</span>
+                            <input type="number" step="0.01" class="opt-inline-input" id="opt-budget-${config.campaign_id}" value="${config.max_daily_budget_cbo.toFixed(2)}" onchange="updateOptBudget('${config.campaign_id}', this.value)">
+                        </div>
+                        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-secondary);cursor:pointer">
+                            <input type="checkbox" ${config.unlimited_scale ? 'checked' : ''} onchange="updateOptField('${config.campaign_id}','unlimited_scale',this.checked)"> Escala Ilimitada
+                        </label>
+                    </div>
+
+                    <!-- OPTIMIZE BUTTON -->
+                    <div style="display:flex;align-items:center;margin-left:auto">
+                        <button class="btn-optimize-green" onclick="runOptimize('${config.campaign_id}')">
+                            <span style="font-size:16px">&#9654;</span> Otimizar
                         </button>
                     </div>
-                </div>
-                <div class="opt-config-fields">
-                    <div class="opt-field">
-                        <label>Comportamento para Pausar</label>
-                        <div style="font-size:14px;font-weight:600;color:${config.pause_behavior === 'rigorous' ? 'var(--danger)' : 'var(--warning)'}">
-                            ${config.pause_behavior === 'rigorous' ? 'Pausa Rigorosa' : 'Pausa Flexivel'}
-                        </div>
-                    </div>
-                    <div class="opt-field">
-                        <label>Metodo de Escala</label>
-                        <div style="font-size:14px;font-weight:600;color:${config.scale_method === 'accelerated' ? 'var(--success)' : 'var(--info)'}">
-                            ${config.scale_method === 'accelerated' ? 'Escala Acelerada' : 'Escala Conservadora'}
-                        </div>
-                    </div>
-                    <div class="opt-field">
-                        <label>CPA Maximo para Pausar</label>
-                        <div style="font-size:14px;font-weight:600">R$ ${config.max_cpa.toFixed(2)}</div>
-                    </div>
-                    <div class="opt-field">
-                        <label>Budget Diario Max CBO</label>
-                        <div style="font-size:14px;font-weight:600">R$ ${config.max_daily_budget_cbo.toFixed(2)}</div>
-                    </div>
-                </div>
-                <div class="opt-config-actions">
-                    <button class="btn btn-outline btn-sm" onclick="openOptConfigModal('${config.campaign_id}', '${esc(name)}', '${config.account_id}')">Editar</button>
-                    <button class="btn btn-ghost btn-sm" onclick="toggleOptConfig('${config.campaign_id}', false)">Desativar</button>
                 </div>
             </div>`;
         }).join('');
@@ -509,6 +531,31 @@ async function renderOptCampaigns() {
             </div>`;
         }).join('');
     }
+}
+
+// Quick inline config updates (no modal needed)
+async function updateOptField(campaignId, field, value) {
+    const config = _configs.find(c => c.campaign_id === campaignId);
+    if (!config) return;
+    try {
+        await api(`/optimization/configs/${campaignId}`, 'PUT', { ...config, [field]: value });
+        showToast('Configuracao atualizada', 'success');
+        _configs = await api(`/optimization/configs?account_id=${_currentAccount}`);
+        renderOptCampaigns();
+    } catch (e) {
+        showToast(`Erro: ${e.message}`, 'error');
+    }
+}
+
+async function updateOptCpa(campaignId, value) {
+    const cpa = parseFloat(value);
+    if (!cpa || cpa <= 0) { showToast('CPA invalido', 'error'); return; }
+    await updateOptField(campaignId, 'max_cpa', cpa);
+}
+
+async function updateOptBudget(campaignId, value) {
+    const budget = parseFloat(value) || 0;
+    await updateOptField(campaignId, 'max_daily_budget_cbo', budget);
 }
 
 function switchOptTab(tab) {
