@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KS Optimizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <img src="/ks-logo.png" alt="KS">
+            <span class="header-brand">KS Optimizer</span>
+            <span class="header-tag">Meta Ads</span>
+        </div>
+        <div class="header-right">
+            <div class="header-status" id="header-status">
+                <span class="dot idle"></span>
+                <span>Offline</span>
+            </div>
+            <div class="header-divider"></div>
+            <select class="header-account-select" id="account-select" onchange="onAccountChange()">
+                <option value="">Selecione uma conta</option>
+            </select>
+            <div class="header-divider"></div>
+            <button class="btn btn-ghost btn-sm" onclick="logout()">Sair</button>
+        </div>
+    </header>
+
+    <!-- SETUP WIZARD (shown when no token) -->
+    <div id="setup-wizard" class="setup-wizard" style="display:none">
+        <h2>Bem-vindo ao KS Optimizer</h2>
+        <p class="desc">Configure seu token da Meta para comecar a otimizar suas campanhas automaticamente.</p>
+        <div id="setup-step-1">
+            <div class="input-group">
+                <label>Token da API Meta</label>
+                <input type="password" id="setup-token" placeholder="Cole seu token aqui...">
+            </div>
+            <button class="btn btn-primary" onclick="setupValidateToken()" id="setup-validate-btn">Validar Token</button>
+            <p id="setup-error" style="color:var(--danger);font-size:13px;margin-top:12px;display:none"></p>
+        </div>
+        <div id="setup-step-2" style="display:none">
+            <p style="font-size:14px;color:var(--success);margin-bottom:16px">Token validado com sucesso!</p>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Contas encontradas:</p>
+            <div id="setup-accounts" class="accounts-list"></div>
+            <button class="btn btn-primary" onclick="setupComplete()" style="margin-top:16px">Continuar para o Dashboard</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="main-app" style="display:none">
+        <div class="app-layout">
+            <div class="main-content">
+                <!-- TABS -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+                    <button class="tab-btn" onclick="switchTab('optimization')">Otimizacao</button>
+                    <button class="tab-btn" onclick="switchTab('campaigns')">Campanhas</button>
+                    <button class="tab-btn" onclick="switchTab('log')">Historico</button>
+                    <button class="tab-btn" onclick="switchTab('settings')">Configuracoes</button>
+                </div>
+
+                <!-- TAB: DASHBOARD -->
+                <div class="tab-content active" id="tab-dashboard">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+                        <h2 style="font-size:18px;font-weight:700">Visao Geral</h2>
+                        <div class="date-filter" id="dashboard-date-filter">
+                            <button class="date-filter-btn" onclick="setDateFilter('today')">Hoje</button>
+                            <button class="date-filter-btn" onclick="setDateFilter('last_3d')">3D</button>
+                            <button class="date-filter-btn active" onclick="setDateFilter('last_7d')">7D</button>
+                            <button class="date-filter-btn" onclick="setDateFilter('last_14d')">14D</button>
+                            <button class="date-filter-btn" onclick="setDateFilter('last_30d')">30D</button>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="stats-grid" id="dashboard-stats">
+                        <div class="stat-card accent">
+                            <div class="label">Investimento</div>
+                            <div class="value" id="stat-spend">--</div>
+                        </div>
+                        <div class="stat-card success">
+                            <div class="label">Leads / Conversoes</div>
+                            <div class="value" id="stat-conversions">--</div>
+                        </div>
+                        <div class="stat-card warning">
+                            <div class="label">CPL / CPA</div>
+                            <div class="value" id="stat-cpa">--</div>
+                        </div>
+                        <div class="stat-card info">
+                            <div class="label">CTR</div>
+                            <div class="value" id="stat-ctr">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">CPC</div>
+                            <div class="value" id="stat-cpc">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">CPM</div>
+                            <div class="value" id="stat-cpm">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Impressoes</div>
+                            <div class="value" id="stat-impressions">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Alcance</div>
+                            <div class="value" id="stat-reach">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Cliques</div>
+                            <div class="value" id="stat-clicks">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Frequencia</div>
+                            <div class="value" id="stat-frequency">--</div>
+                        </div>
+                        <div class="stat-card success">
+                            <div class="label">Campanhas Ativas</div>
+                            <div class="value" id="stat-active-campaigns">--</div>
+                        </div>
+                        <div class="stat-card accent">
+                            <div class="label">Otimizacoes Hoje</div>
+                            <div class="value" id="stat-optimizations-today">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Campaign Performance Summary -->
+                    <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Performance por Campanha</h3>
+                    <div id="dashboard-campaigns-summary" class="campaigns-grid">
+                        <div class="loading-overlay"><div class="spinner"></div> Carregando...</div>
+                    </div>
+                </div>
+
+                <!-- TAB: OPTIMIZATION -->
+                <div class="tab-content" id="tab-optimization">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+                        <h2 style="font-size:18px;font-weight:700">Otimizacao com IA</h2>
+                        <div style="display:flex;gap:8px">
+                            <button class="btn-optimize" onclick="runOptimizeAll()" id="btn-optimize-all">
+                                Otimizar Todas
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Optimization progress -->
+                    <div id="optimization-progress" style="display:none;margin-bottom:20px">
+                        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                                <div class="spinner"></div>
+                                <span style="font-size:14px;font-weight:600" id="opt-progress-text">Otimizando...</span>
+                            </div>
+                            <div class="progress-bar"><div class="fill indeterminate"></div></div>
+                            <div id="opt-progress-log" style="margin-top:10px;max-height:200px;overflow-y:auto;font-size:12px;color:var(--text-secondary)"></div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tabs: Ativadas / Desativadas -->
+                    <div class="tabs" style="max-width:300px;margin-bottom:16px">
+                        <button class="tab-btn active" onclick="switchOptTab('enabled')">Ativadas</button>
+                        <button class="tab-btn" onclick="switchOptTab('disabled')">Desativadas</button>
+                    </div>
+
+                    <div id="opt-campaigns-enabled" class="campaigns-grid"></div>
+                    <div id="opt-campaigns-disabled" class="campaigns-grid" style="display:none"></div>
+                </div>
+
+                <!-- TAB: CAMPAIGNS -->
+                <div class="tab-content" id="tab-campaigns">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+                        <h2 style="font-size:18px;font-weight:700">Campanhas</h2>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="text" id="campaign-search" placeholder="Buscar campanha..." style="padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:13px;font-family:inherit;width:250px">
+                            <button class="btn btn-outline btn-sm" onclick="refreshCampaigns()">Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="campaigns-list" class="campaigns-grid">
+                        <div class="loading-overlay"><div class="spinner"></div> Carregando campanhas...</div>
+                    </div>
+                </div>
+
+                <!-- TAB: LOG -->
+                <div class="tab-content" id="tab-log">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+                        <h2 style="font-size:18px;font-weight:700">Historico de Otimizacoes</h2>
+                        <div style="display:flex;gap:8px">
+                            <select id="log-filter-action" onchange="loadOptLog()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:13px;font-family:inherit">
+                                <option value="">Todas as acoes</option>
+                                <option value="pause">Pausas</option>
+                                <option value="reactivate">Reativacoes</option>
+                                <option value="scale">Escalas</option>
+                            </select>
+                            <button class="btn btn-outline btn-sm" onclick="loadOptLog()">Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="log-list" class="log-list"></div>
+                </div>
+
+                <!-- TAB: SETTINGS -->
+                <div class="tab-content" id="tab-settings">
+                    <h2 style="font-size:18px;font-weight:700;margin-bottom:20px">Configuracoes</h2>
+
+                    <!-- Token -->
+                    <div class="settings-section">
+                        <h3>Token Meta API</h3>
+                        <p class="desc">Token de acesso para a API do Meta Marketing.</p>
+                        <div class="settings-row">
+                            <div>
+                                <div class="label">Status do Token</div>
+                                <div class="hint" id="settings-token-status">--</div>
+                            </div>
+                            <button class="btn btn-outline btn-sm" onclick="showChangeTokenModal()">Alterar Token</button>
+                        </div>
+                    </div>
+
+                    <!-- Accounts -->
+                    <div class="settings-section">
+                        <h3>Contas de Anuncio</h3>
+                        <p class="desc">Contas Meta Ads vinculadas ao seu token.</p>
+                        <div id="settings-accounts"></div>
+                        <button class="btn btn-outline btn-sm" onclick="discoverAccounts()" style="margin-top:12px">Redescobrir Contas</button>
+                    </div>
+
+                    <!-- Auto Optimization -->
+                    <div class="settings-section">
+                        <h3>Otimizacao Automatica</h3>
+                        <p class="desc">Execute otimizacoes automaticamente em intervalos regulares.</p>
+                        <div class="settings-row">
+                            <div>
+                                <div class="label">Auto-otimizar</div>
+                                <div class="hint">Roda a cada X minutos para todas campanhas ativadas</div>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="settings-auto-optimize" onchange="saveSettings()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row">
+                            <div>
+                                <div class="label">Intervalo (minutos)</div>
+                                <div class="hint">Tempo entre cada ciclo de otimizacao</div>
+                            </div>
+                            <input type="number" id="settings-interval" value="30" min="10" max="180" style="width:80px" onchange="saveSettings()">
+                        </div>
+                        <div class="settings-row">
+                            <div>
+                                <div class="label">Comportamento Padrao de Pausa</div>
+                            </div>
+                            <select id="settings-default-pause" onchange="saveSettings()">
+                                <option value="rigorous">Rigorosa</option>
+                                <option value="flexible">Flexivel</option>
+                            </select>
+                        </div>
+                        <div class="settings-row">
+                            <div>
+                                <div class="label">Metodo Padrao de Escala</div>
+                            </div>
+                            <select id="settings-default-scale" onchange="saveSettings()">
+                                <option value="accelerated">Acelerada</option>
+                                <option value="conservative">Conservadora</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIDEBAR: Live activity -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h3>Atividade em Tempo Real</h3>
+                </div>
+                <div class="sidebar-content" id="sidebar-activity">
+                    <div class="sidebar-item">
+                        <span class="icon">--</span>
+                        <div class="text">
+                            <div class="title" style="color:var(--text-muted)">Nenhuma atividade ainda</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- MODAL: Change Token -->
+    <div class="modal-overlay" id="modal-token">
+        <div class="modal">
+            <h3>Alterar Token</h3>
+            <p class="desc">Cole o novo token da API do Meta.</p>
+            <div class="input-group" style="margin-bottom:0">
+                <input type="password" id="modal-token-input" placeholder="Novo token..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:14px;font-family:inherit">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeModal('modal-token')">Cancelar</button>
+                <button class="btn btn-primary" onclick="changeToken()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Campaign Optimization Config -->
+    <div class="modal-overlay" id="modal-opt-config">
+        <div class="modal" style="max-width:520px">
+            <h3>Configurar Otimizacao</h3>
+            <p class="desc" id="modal-opt-campaign-name">--</p>
+            <input type="hidden" id="modal-opt-campaign-id">
+            <input type="hidden" id="modal-opt-account-id">
+            <div class="opt-config-fields">
+                <div class="opt-field">
+                    <label>Comportamento para Pausar</label>
+                    <select id="modal-opt-pause">
+                        <option value="rigorous">Pausa Rigorosa</option>
+                        <option value="flexible">Pausa Flexivel</option>
+                    </select>
+                </div>
+                <div class="opt-field">
+                    <label>Metodo de Escala</label>
+                    <select id="modal-opt-scale">
+                        <option value="accelerated">Escala Acelerada</option>
+                        <option value="conservative">Escala Conservadora</option>
+                    </select>
+                </div>
+                <div class="opt-field">
+                    <label>Custo por Conversao para PAUSAR (R$)</label>
+                    <input type="number" id="modal-opt-max-cpa" step="0.50" min="0" placeholder="Ex: 5.00">
+                </div>
+                <div class="opt-field">
+                    <label>Orcamento Diario Maximo CBO (R$)</label>
+                    <input type="number" id="modal-opt-max-budget" step="10" min="0" placeholder="Ex: 200">
+                </div>
+            </div>
+            <div style="margin-top:14px;display:flex;align-items:center;gap:8px">
+                <label class="toggle">
+                    <input type="checkbox" id="modal-opt-unlimited">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span style="font-size:13px;color:var(--text-secondary)">Escala ilimitada</span>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeModal('modal-opt-config')">Cancelar</button>
+                <button class="btn btn-danger btn-sm" onclick="removeOptConfig()" id="btn-remove-opt" style="display:none">Remover</button>
+                <button class="btn btn-primary" onclick="saveOptConfig()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
