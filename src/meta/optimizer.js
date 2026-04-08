@@ -424,14 +424,23 @@ class Optimizer {
         const avgCPA7d = campaignMetrics.last_7d?.cpa || maxCPA;
         const avgCPC7d = campaignMetrics.last_7d?.cpc || 999;
 
-        // === FALTA DE CONVERSAO ===
-
-        // Rule 1: Never converted (3+ days active, 0 conversions, significant spend)
         const m30d = metrics.last_30d;
         const m14d = metrics.last_14d;
         const m7d = metrics.last_7d;
         const m3d = metrics.last_3d;
         const mToday = metrics.today;
+
+        // === MINIMUM SPEND GUARD ===
+        // Don't evaluate any pause rules until adset has meaningful data
+        const minSpendForRules = Math.max(maxCPA * 5, 10); // At least 5x CPA or R$10
+        const totalSpend7d = m7d ? m7d.spend : 0;
+        if (totalSpend7d < minSpendForRules) {
+            return null; // Not enough data yet, let it run
+        }
+
+        // === FALTA DE CONVERSAO ===
+
+        // Rule 1: Never converted (3+ days active, 0 conversions, significant spend)
 
         if (m7d && m7d.spend > maxCPA * 2 && m7d.conversions === 0 && m7d.checkouts === 0) {
             return this._createPauseAction(item, objectType, 'pause_never_converted',
