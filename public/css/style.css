@@ -615,6 +615,27 @@ body {
     animation: pulseGlow 2s infinite;
 }
 
+/* ==================== OPT LIVE STATUS ==================== */
+.opt-status-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--success);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.opt-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
 /* ==================== ONECLICK-STYLE OPT TOGGLES ==================== */
 .opt-toggle-btn {
     padding: 6px 14px;
@@ -681,9 +702,52 @@ body {
 .btn-optimize-green:active { transform: scale(0.97); }
 
 .btn-optimize-green:disabled {
-    opacity: 0.5;
+    opacity: 0.8;
     cursor: not-allowed;
     transform: none;
+}
+
+/* Running state - arrow animation */
+.btn-optimize-green.running {
+    background: #16a34a;
+    animation: pulseGreen 2s infinite;
+}
+
+.opt-btn-arrow-up {
+    display: inline-block;
+    font-size: 18px;
+    font-weight: 700;
+    animation: arrowBounce 1s infinite;
+}
+
+.opt-btn-count {
+    background: rgba(255,255,255,0.25);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+/* Done state */
+.btn-optimize-green.done {
+    background: #059669;
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+}
+
+/* Error state */
+.btn-optimize-green.error {
+    background: var(--danger);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+@keyframes arrowBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@keyframes pulseGreen {
+    0%, 100% { box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3); }
+    50% { box-shadow: 0 4px 32px rgba(34, 197, 94, 0.5); }
 }
 
 /* ==================== BADGES ==================== */

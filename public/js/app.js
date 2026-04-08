@@ -6,6 +6,7 @@ let _campaigns = [];
 let _configs = [];
 let _dateFilter = localStorage.getItem('ks-date-filter') || 'last_7d';
 let _settings = {};
+let _todayOptCounts = {}; // { campaignId: count }
 
 // ==================== THEME ====================
 function toggleTheme() {
@@ -415,6 +416,19 @@ async function loadOptConfigs() {
 
     try {
         _configs = await api(`/optimization/configs?account_id=${_currentAccount}`);
+
+        // Fetch today's optimization counts per campaign
+        try {
+            const logs = await api(`/optimization/log?account_id=${_currentAccount}&limit=1000`);
+            const today = new Date().toISOString().slice(0, 10);
+            _todayOptCounts = {};
+            for (const log of logs) {
+                if (log.timestamp && log.timestamp.slice(0, 10) === today && log.success) {
+                    _todayOptCounts[log.campaign_id] = (_todayOptCounts[log.campaign_id] || 0) + 1;
+                }
+            }
+        } catch (e) { /* ignore */ }
+
         renderOptCampaigns();
     } catch (e) {
         console.error('Error loading configs:', e);
@@ -445,10 +459,16 @@ async function renderOptCampaigns() {
             const name = campaign ? campaign.name : config.campaign_name || config.campaign_id;
             const status = campaign ? campaign.status : '';
 
+            // Count today's optimizations for this campaign
+            const todayActions = _todayOptCounts[config.campaign_id] || 0;
+
             return `
             <div class="opt-config-card">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                    <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Otimizacao Manual</div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <span class="opt-status-live"><span class="opt-live-dot"></span> Otimizacao Ativa 24/7</span>
+                        ${todayActions > 0 ? `<span class="badge badge-success">${todayActions} otimizacao${todayActions !== 1 ? 'es' : ''} hoje</span>` : '<span class="badge badge-muted">0 otimizacoes hoje</span>'}
+                    </div>
                     <div style="display:flex;align-items:center;gap:8px">
                         <a href="https://www.facebook.com/adsmanager/manage/campaigns?act=${(config.account_id||'').replace('act_','')}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:4px">↗ Meta</a>
                         <button class="btn btn-ghost btn-sm" onclick="toggleOptConfig('${config.campaign_id}', false)" style="font-size:11px;color:var(--danger)">Desativar</button>
@@ -498,8 +518,8 @@ async function renderOptCampaigns() {
 
                     <!-- OPTIMIZE BUTTON -->
                     <div style="display:flex;align-items:center;margin-left:auto">
-                        <button class="btn-optimize-green" onclick="runOptimize('${config.campaign_id}')">
-                            <span style="font-size:16px">&#9654;</span> Otimizar
+                        <button class="btn-optimize-green" id="opt-btn-${config.campaign_id}" onclick="runOptimize('${config.campaign_id}')">
+                            <span class="opt-btn-icon">&#9654;</span> Otimizar
                         </button>
                     </div>
                 </div>
@@ -659,23 +679,78 @@ async function toggleOptConfig(campaignId, enabled) {
 }
 
 // ==================== OPTIMIZATION EXECUTION ====================
+let _optimizingCampaigns = {}; // { campaignId: { actions: 0, status: 'running' } }
+
 async function runOptimize(campaignId) {
     try {
+        _optimizingCampaigns[campaignId] = { actions: 0, status: 'running' };
+        updateOptButton(campaignId);
         showOptProgress();
         await api(`/optimization/run/${campaignId}`, 'POST');
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
+        _optimizingCampaigns[campaignId] = { actions: 0, status: 'error' };
+        updateOptButton(campaignId);
         hideOptProgress();
     }
 }
 
 async function runOptimizeAll() {
     try {
+        // Mark all enabled campaigns as optimizing
+        _configs.filter(c => c.enabled).forEach(c => {
+            _optimizingCampaigns[c.campaign_id] = { actions: 0, status: 'running' };
+            updateOptButton(c.campaign_id);
+        });
         showOptProgress();
         await api('/optimization/run-all', 'POST');
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
+        Object.keys(_optimizingCampaigns).forEach(id => {
+            _optimizingCampaigns[id].status = 'error';
+            updateOptButton(id);
+        });
         hideOptProgress();
+    }
+}
+
+function updateOptButton(campaignId) {
+    const btn = document.getElementById(`opt-btn-${campaignId}`);
+    if (!btn) return;
+
+    const state = _optimizingCampaigns[campaignId];
+    if (!state) {
+        btn.innerHTML = '<span class="opt-btn-icon">&#9654;</span> Otimizar';
+        btn.className = 'btn-optimize-green';
+        btn.disabled = false;
+        return;
+    }
+
+    switch (state.status) {
+        case 'running':
+            btn.innerHTML = `<span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${state.actions}</span>`;
+            btn.className = 'btn-optimize-green running';
+            btn.disabled = true;
+            break;
+        case 'done':
+            btn.innerHTML = `<span style="font-size:16px">&#10003;</span> ${state.actions} otimizacao${state.actions !== 1 ? 'es' : ''}`;
+            btn.className = 'btn-optimize-green done';
+            btn.disabled = false;
+            // Reset after 30s
+            setTimeout(() => {
+                delete _optimizingCampaigns[campaignId];
+                updateOptButton(campaignId);
+            }, 30000);
+            break;
+        case 'error':
+            btn.innerHTML = '<span style="font-size:14px">&#10007;</span> Erro - Tentar novamente';
+            btn.className = 'btn-optimize-green error';
+            btn.disabled = false;
+            setTimeout(() => {
+                delete _optimizingCampaigns[campaignId];
+                updateOptButton(campaignId);
+            }, 10000);
+            break;
     }
 }
 
@@ -874,12 +949,24 @@ function setupSocketListeners() {
 
         document.getElementById('opt-progress-text').textContent = data.message;
 
+        // Track actions per campaign for the button counter
+        if (data.status === 'action' && data.campaign_id && _optimizingCampaigns[data.campaign_id]) {
+            _optimizingCampaigns[data.campaign_id].actions++;
+            updateOptButton(data.campaign_id);
+        }
+
         // Add to sidebar
         addSidebarActivity(data.status === 'action' ? '⚡' : 'ℹ️', data.message);
     });
 
     socket.on('optimization_result', (result) => {
         hideOptProgress();
+        const cid = result.campaign_id;
+        if (cid && _optimizingCampaigns[cid]) {
+            _optimizingCampaigns[cid].actions = result.successful_actions || 0;
+            _optimizingCampaigns[cid].status = 'done';
+            updateOptButton(cid);
+        }
         showToast(`Otimizacao concluida: ${result.successful_actions || 0} acoes`, 'success');
         loadOptLog();
         loadDashboard();
@@ -887,6 +974,14 @@ function setupSocketListeners() {
 
     socket.on('optimization_all_complete', (results) => {
         hideOptProgress();
+        for (const result of results) {
+            const cid = result.campaign_id;
+            if (cid && _optimizingCampaigns[cid]) {
+                _optimizingCampaigns[cid].actions = result.total_actions || 0;
+                _optimizingCampaigns[cid].status = result.error ? 'error' : 'done';
+                updateOptButton(cid);
+            }
+        }
         const total = results.reduce((s, r) => s + (r.total_actions || 0), 0);
         showToast(`Todas as campanhas otimizadas: ${total} acoes`, 'success');
         loadOptLog();
@@ -895,6 +990,13 @@ function setupSocketListeners() {
 
     socket.on('optimization_error', (data) => {
         hideOptProgress();
+        // Mark all running as error
+        Object.keys(_optimizingCampaigns).forEach(id => {
+            if (_optimizingCampaigns[id].status === 'running') {
+                _optimizingCampaigns[id].status = 'error';
+                updateOptButton(id);
+            }
+        });
         showToast(`Erro na otimizacao: ${data.error}`, 'error');
     });
 
