@@ -7,8 +7,28 @@ let _configs = [];
 let _dateFilter = 'last_7d';
 let _settings = {};
 
+// ==================== THEME ====================
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('ks-theme', next);
+    updateThemeIcon(next);
+}
+
+function updateThemeIcon(theme) {
+    const icon = document.getElementById('theme-icon');
+    if (icon) {
+        // Moon for dark, Sun for light
+        icon.innerHTML = theme === 'dark' ? '&#9790;' : '&#9728;';
+    }
+}
+
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
+    // Sync theme icon with current theme
+    updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'dark');
     await checkSetup();
 });
 

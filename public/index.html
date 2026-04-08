@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
+    <script>
+        // Apply saved theme immediately to prevent flash
+        (function() {
+            var saved = localStorage.getItem('ks-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', saved);
+        })();
+    </script>
 </head>
 <body>
     <!-- HEADER -->
@@ -25,6 +32,10 @@
             <select class="header-account-select" id="account-select" onchange="onAccountChange()">
                 <option value="">Selecione uma conta</option>
             </select>
+            <div class="header-divider"></div>
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" data-tooltip="Alternar tema">
+                <span id="theme-icon">&#9790;</span>
+            </button>
             <div class="header-divider"></div>
             <button class="btn btn-ghost btn-sm" onclick="logout()">Sair</button>
         </div>

@@ -36,6 +36,62 @@
     --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ==================== LIGHT THEME ==================== */
+[data-theme="light"] {
+    --bg-base: #f5f6fa;
+    --bg-primary: #ffffff;
+    --bg-secondary: #eef0f6;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f8f9fc;
+    --bg-input: #f0f2f7;
+    --bg-glass: rgba(255, 255, 255, 0.85);
+    --text-primary: #1a1d2e;
+    --text-secondary: #5a5e72;
+    --text-muted: #8b8fa3;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-light: rgba(99, 102, 241, 0.1);
+    --accent-glow: rgba(99, 102, 241, 0.2);
+    --success: #16a34a;
+    --success-light: rgba(22, 163, 74, 0.1);
+    --warning: #d97706;
+    --warning-light: rgba(217, 119, 6, 0.1);
+    --danger: #dc2626;
+    --danger-light: rgba(220, 38, 38, 0.1);
+    --info: #2563eb;
+    --info-light: rgba(37, 99, 235, 0.1);
+    --border: rgba(0, 0, 0, 0.08);
+    --border-hover: rgba(0, 0, 0, 0.15);
+    --shadow-xs: 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .btn-ghost:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .badge-muted {
+    background: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.12);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.2);
+}
+
+[data-theme="light"] .tab-btn:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .campaign-status.archived {
+    background: rgba(0,0,0,0.06);
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -136,6 +192,28 @@ body {
 .header-account-select:focus {
     outline: none;
     border-color: var(--accent);
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.theme-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-light);
 }
 
 /* ==================== LAYOUT ==================== */
