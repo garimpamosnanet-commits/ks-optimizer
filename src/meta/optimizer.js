@@ -430,12 +430,33 @@ class Optimizer {
         const m3d = metrics.last_3d;
         const mToday = metrics.today;
 
-        // === MINIMUM SPEND GUARD ===
-        // Don't evaluate any pause rules until adset has meaningful data
+        // === INTELLIGENCE LAYER ===
+
+        // 1. MINIMUM SPEND GUARD — need data before deciding
         const minSpendForRules = Math.max(maxCPA * 5, 25); // At least 5x CPA or R$25
         const totalSpend7d = m7d ? m7d.spend : 0;
         if (totalSpend7d < minSpendForRules) {
-            return null; // Not enough data yet, let it run
+            return null; // Not enough data yet
+        }
+
+        // 2. TIME-OF-DAY AWARENESS — don't temp-pause before 14h BRT, day is still young
+        const nowBRT = new Date(Date.now() - 3 * 60 * 60 * 1000); // UTC-3
+        const hourBRT = nowBRT.getUTCHours();
+        const isEarlyInDay = hourBRT < 14;
+
+        // 3. TREND ANALYSIS — is performance improving or declining?
+        let trendImproving = false;
+        if (m7d && m14d && m7d.cpa && m14d.cpa && m7d.cpa !== Infinity && m14d.cpa !== Infinity) {
+            trendImproving = m7d.cpa < m14d.cpa * 0.9; // CPA improving >10%
+        }
+
+        // 4. CONVERSION VELOCITY — converting today = never temp-pause
+        const hasConversionsToday = mToday && mToday.conversions > 0;
+
+        // 5. TOP PERFORMER PROTECTION — if CPA is below 70% of max, protect it
+        const isTopPerformer = m7d && m7d.cpa && m7d.cpa !== Infinity && m7d.cpa < maxCPA * 0.7;
+        if (isTopPerformer) {
+            return null; // Never pause a top performer
         }
 
         // === FALTA DE CONVERSAO ===
@@ -483,8 +504,9 @@ class Optimizer {
 
         // === PERDA DE PERFORMANCE ===
 
-        // Rule 6: Max CPA exceeded
-        if (m7d && m7d.cpa && m7d.cpa !== Infinity && m7d.cpa > maxCPA * (isRigorous ? 1.2 : 1.5)) {
+        // Rule 6: Max CPA exceeded (if trend improving, give 30% more room)
+        const cpaTolerance = trendImproving ? 1.3 : 1.0;
+        if (m7d && m7d.cpa && m7d.cpa !== Infinity && m7d.cpa > maxCPA * (isRigorous ? 1.2 : 1.5) * cpaTolerance) {
             return this._createPauseAction(item, objectType, 'pause_max_cpa',
                 SUFFIXES.PAUSE_MAX_CPA,
                 `CPA acima do maximo (R$${m7d.cpa.toFixed(2)} vs limite R$${maxCPA.toFixed(2)})`
@@ -527,10 +549,13 @@ class Optimizer {
             );
         }
 
-        // === PAUSAS TEMPORARIAS ===
+        // === PAUSAS TEMPORARIAS (respect intelligence layer) ===
 
-        // Rule 11: CPA today above threshold (needs significant spend first)
-        if (mToday && mToday.cpa && mToday.cpa !== Infinity && mToday.spend > maxCPA * 3 && mToday.cpa > maxCPA * (isRigorous ? 2 : 2.5)) {
+        // Rule 11: CPA today above threshold
+        // Skip if: early in day, has conversions today, or trend improving
+        if (mToday && mToday.cpa && mToday.cpa !== Infinity && mToday.spend > maxCPA * 3
+            && mToday.cpa > maxCPA * (isRigorous ? 2 : 2.5)
+            && !isEarlyInDay && !trendImproving) {
             return this._createPauseAction(item, objectType, 'temp_pause_cpa_today',
                 SUFFIXES.TEMP_PAUSE_CPA_TODAY,
                 `CPA hoje alto (R$${mToday.cpa.toFixed(2)}) - reativa a meia-noite`,
@@ -538,8 +563,10 @@ class Optimizer {
             );
         }
 
-        // Rule 12: No conversions today with significant spend (3x CPA rigorosa, 5x flexivel)
-        if (mToday && mToday.conversions === 0 && mToday.spend > maxCPA * (isRigorous ? 3 : 5)) {
+        // Rule 12: No conversions today with significant spend
+        // Skip if: early in day or trend improving
+        if (mToday && mToday.conversions === 0 && mToday.spend > maxCPA * (isRigorous ? 3 : 5)
+            && !isEarlyInDay) {
             return this._createPauseAction(item, objectType, 'temp_pause_no_conv_today',
                 SUFFIXES.TEMP_PAUSE_NO_CONV_TODAY,
                 `Sem conversoes hoje (spend R$${mToday.spend.toFixed(2)}) - reativa a meia-noite`,
