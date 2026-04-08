@@ -4,7 +4,7 @@ let _accounts = [];
 let _currentAccount = null;
 let _campaigns = [];
 let _configs = [];
-let _dateFilter = 'last_7d';
+let _dateFilter = localStorage.getItem('ks-date-filter') || 'last_7d';
 let _settings = {};
 
 // ==================== THEME ====================
@@ -72,9 +72,11 @@ async function loadApp() {
     // Load settings into UI
     loadSettingsUI();
 
-    // If accounts exist, auto-select first
+    // Restore saved account or auto-select first
     if (_accounts.length > 0) {
-        _currentAccount = _accounts[0].id;
+        const saved = localStorage.getItem('ks-selected-account');
+        const exists = saved && _accounts.some(a => a.id === saved);
+        _currentAccount = exists ? saved : _accounts[0].id;
         document.getElementById('account-select').value = _currentAccount;
         await onAccountChange();
     }
@@ -84,6 +86,20 @@ async function loadApp() {
 
     // Setup search
     document.getElementById('campaign-search').addEventListener('input', filterCampaigns);
+
+    // Restore saved tab
+    const savedTab = localStorage.getItem('ks-active-tab');
+    if (savedTab) switchTab(savedTab);
+
+    // Sync date filter buttons with saved filter
+    document.querySelectorAll('.date-filter-btn').forEach(b => {
+        b.classList.toggle('active',
+            (_dateFilter === 'today' && b.textContent === 'Hoje') ||
+            (_dateFilter === 'last_3d' && b.textContent === '3D') ||
+            (_dateFilter === 'last_7d' && b.textContent === '7D') ||
+            (_dateFilter === 'last_14d' && b.textContent === '14D') ||
+            (_dateFilter === 'last_30d' && b.textContent === '30D'));
+    });
 }
 
 // ==================== SETUP WIZARD ====================
@@ -174,6 +190,9 @@ function populateAccountSelect() {
 async function onAccountChange() {
     _currentAccount = document.getElementById('account-select').value;
     if (!_currentAccount) return;
+
+    // Persist selected account
+    localStorage.setItem('ks-selected-account', _currentAccount);
 
     await Promise.all([
         loadDashboard(),
@@ -312,6 +331,7 @@ async function loadDashboardCampaigns(campaigns) {
 
 function setDateFilter(preset) {
     _dateFilter = preset;
+    localStorage.setItem('ks-date-filter', preset);
     document.querySelectorAll('.date-filter-btn').forEach(b => {
         b.classList.toggle('active', b.textContent.toLowerCase().replace(' ', '') === preset.replace('last_', '').replace('d', 'D') ||
             (preset === 'today' && b.textContent === 'Hoje') ||
@@ -895,6 +915,9 @@ function switchTab(tab) {
     const idx = tabNames.indexOf(tab);
     const btns = document.querySelector('.main-content > .tabs').querySelectorAll('.tab-btn');
     if (btns[idx]) btns[idx].classList.add('active');
+
+    // Persist active tab
+    localStorage.setItem('ks-active-tab', tab);
 }
 
 // ==================== MODAL ====================
