@@ -778,6 +778,12 @@ function showOptProgress() {
 function hideOptProgress() {
     document.getElementById('btn-optimize-all').disabled = false;
     document.getElementById('btn-optimize-all').classList.remove('running');
+
+    // Auto-hide progress after 3 seconds
+    setTimeout(() => {
+        const el = document.getElementById('optimization-progress');
+        if (el) el.style.display = 'none';
+    }, 3000);
 }
 
 // ==================== LOG ====================
