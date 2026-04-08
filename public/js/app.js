@@ -388,9 +388,6 @@ function renderCampaigns(campaigns) {
                     ` : '<span class="badge badge-muted">Sem otimizacao</span>'}
                 </div>
                 <div class="campaign-actions">
-                    <button class="btn btn-outline btn-sm" onclick="openOptConfigModal('${c.id}', '${esc(c.name)}', '${_currentAccount}')">
-                        Configurar
-                    </button>
                     ${c.status === 'ACTIVE' ?
                         `<button class="btn btn-warning btn-sm" onclick="quickPause('${c.id}')">Pausar</button>` :
                         `<button class="btn btn-success btn-sm" onclick="quickActivate('${c.id}')">Ativar</button>`
