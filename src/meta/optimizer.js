@@ -430,6 +430,16 @@ class Optimizer {
         const m3d = metrics.last_3d;
         const mToday = metrics.today;
 
+        // === 24H PROTECTION ===
+        // Don't touch anything in the first 24 hours — learning phase
+        const createdTime = item.created_time ? new Date(item.created_time) : null;
+        if (createdTime) {
+            const hoursActive = (Date.now() - createdTime.getTime()) / (1000 * 60 * 60);
+            if (hoursActive < 24) {
+                return null; // First 24h, let it learn
+            }
+        }
+
         // === MINIMUM SPEND GUARD ===
         // Don't evaluate any pause rules until adset has meaningful data
         const minSpendForRules = Math.max(maxCPA * 5, 10); // At least 5x CPA or R$10
