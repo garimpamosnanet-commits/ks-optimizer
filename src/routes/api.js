@@ -175,18 +175,50 @@ module.exports = function(metaAPI, optimizer, database, io) {
         res.json(config);
     });
 
-    router.put('/optimization/configs/:campaign_id', (req, res) => {
+    router.put('/optimization/configs/:campaign_id', async (req, res) => {
+        const campaignId = req.params.campaign_id;
         const config = {
-            campaign_id: req.params.campaign_id,
+            campaign_id: campaignId,
             ...req.body
         };
+
+        // Check previous state to detect enable/disable transition
+        const prevConfig = db.getCampaignConfig(campaignId);
+        const wasEnabled = prevConfig ? prevConfig.enabled : false;
+        const isEnabled = config.enabled;
+
         const saved = db.saveCampaignConfig(config);
         res.json({ ok: true, config: saved });
+
+        // Update campaign nomenclature [KS ON] prefix
+        try {
+            if (isEnabled && !wasEnabled) {
+                // Just enabled → add prefix
+                await optimizer.addKsOnPrefix(campaignId);
+            } else if (!isEnabled && wasEnabled) {
+                // Just disabled → remove prefix
+                await optimizer.removeKsOnPrefix(campaignId);
+            }
+        } catch (e) {
+            console.error(`[API] Erro ao atualizar prefix KS ON:`, e.message);
+        }
     });
 
-    router.delete('/optimization/configs/:campaign_id', (req, res) => {
-        db.removeCampaignConfig(req.params.campaign_id);
+    router.delete('/optimization/configs/:campaign_id', async (req, res) => {
+        const campaignId = req.params.campaign_id;
+        const prevConfig = db.getCampaignConfig(campaignId);
+
+        db.removeCampaignConfig(campaignId);
         res.json({ ok: true });
+
+        // Remove [KS ON] prefix if was enabled
+        if (prevConfig && prevConfig.enabled) {
+            try {
+                await optimizer.removeKsOnPrefix(campaignId);
+            } catch (e) {
+                console.error(`[API] Erro ao remover prefix KS ON:`, e.message);
+            }
+        }
     });
 
     // ==================== OPTIMIZATION EXECUTION ====================

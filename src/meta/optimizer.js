@@ -68,6 +68,9 @@ const SUFFIXES = {
     CORRECTION_MAX_BUDGET: ' | Correcao Orcamento Maximo'
 };
 
+// Prefixo de campanha ativa no otimizador
+const KS_ON_PREFIX = '[KS ON] ';
+
 // Tags de Controle
 const CONTROL_TAGS = {
     MANUAL: '[manual]',
@@ -824,6 +827,45 @@ class Optimizer {
         return clean.trim();
     }
 
+    // ==================== KS ON PREFIX ====================
+    /**
+     * Add [KS ON] prefix to campaign name via Meta API
+     */
+    async addKsOnPrefix(campaignId) {
+        try {
+            const campaign = await this.api.getCampaignDetails(campaignId);
+            if (!campaign || !campaign.name) return;
+
+            // Already has prefix
+            if (campaign.name.startsWith(KS_ON_PREFIX)) return;
+
+            const newName = KS_ON_PREFIX + campaign.name;
+            await this.api.updateName(campaignId, newName);
+            console.log(`[Optimizer] Prefix adicionado: ${newName}`);
+        } catch (e) {
+            console.error(`[Optimizer] Erro ao adicionar prefix KS ON: ${e.message}`);
+        }
+    }
+
+    /**
+     * Remove [KS ON] prefix from campaign name via Meta API
+     */
+    async removeKsOnPrefix(campaignId) {
+        try {
+            const campaign = await this.api.getCampaignDetails(campaignId);
+            if (!campaign || !campaign.name) return;
+
+            // Doesn't have prefix
+            if (!campaign.name.startsWith(KS_ON_PREFIX)) return;
+
+            const newName = campaign.name.slice(KS_ON_PREFIX.length);
+            await this.api.updateName(campaignId, newName);
+            console.log(`[Optimizer] Prefix removido: ${newName}`);
+        } catch (e) {
+            console.error(`[Optimizer] Erro ao remover prefix KS ON: ${e.message}`);
+        }
+    }
+
     _emitProgress(campaignId, status, message) {
         if (this.io) {
             this.io.emit('optimization_progress', {
@@ -836,4 +878,5 @@ class Optimizer {
     }
 }
 
+Optimizer.KS_ON_PREFIX = KS_ON_PREFIX;
 module.exports = Optimizer;
