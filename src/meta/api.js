@@ -21,11 +21,11 @@ class MetaAPI {
         const token = this.getToken();
         if (!token) throw new Error('Token Meta nao configurado');
 
-        // Rate limiting: min 200ms between requests
+        // Rate limiting: min 500ms between requests (Meta API limit ~200 calls/hour)
         const now = Date.now();
         const elapsed = now - this._lastRequest;
-        if (elapsed < 200) {
-            await new Promise(r => setTimeout(r, 200 - elapsed));
+        if (elapsed < 500) {
+            await new Promise(r => setTimeout(r, 500 - elapsed));
         }
         this._lastRequest = Date.now();
         this._requestCount++;
@@ -54,22 +54,38 @@ class MetaAPI {
             }
         }
 
-        try {
-            const resp = await fetch(url.toString(), fetchOpts);
-            const data = await resp.json();
+        // Retry with backoff for rate limits
+        let retries = 0;
+        const maxRetries = 3;
 
-            if (data.error) {
-                const err = new Error(data.error.message || 'Meta API error');
-                err.code = data.error.code;
-                err.type = data.error.type;
-                err.fbtrace_id = data.error.fbtrace_id;
-                throw err;
+        while (true) {
+            try {
+                const resp = await fetch(url.toString(), fetchOpts);
+                const data = await resp.json();
+
+                if (data.error) {
+                    // Rate limit: retry with exponential backoff
+                    if ((data.error.code === 32 || data.error.code === 4 ||
+                         (data.error.message && data.error.message.includes('limit'))) && retries < maxRetries) {
+                        retries++;
+                        const wait = Math.pow(2, retries) * 2000; // 4s, 8s, 16s
+                        console.log(`[MetaAPI] Rate limit hit, retry ${retries}/${maxRetries} in ${wait}ms...`);
+                        await new Promise(r => setTimeout(r, wait));
+                        continue;
+                    }
+
+                    const err = new Error(data.error.message || 'Meta API error');
+                    err.code = data.error.code;
+                    err.type = data.error.type;
+                    err.fbtrace_id = data.error.fbtrace_id;
+                    throw err;
+                }
+
+                return data;
+            } catch (e) {
+                if (e.code) throw e; // Already a Meta API error
+                throw new Error(`Meta API request failed: ${e.message}`);
             }
-
-            return data;
-        } catch (e) {
-            if (e.code) throw e; // Already a Meta API error
-            throw new Error(`Meta API request failed: ${e.message}`);
         }
     }
 
