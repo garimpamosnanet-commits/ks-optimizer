@@ -520,8 +520,8 @@ class Optimizer {
 
         // === PAUSAS TEMPORARIAS ===
 
-        // Rule 11: CPA today above threshold
-        if (mToday && mToday.cpa && mToday.cpa !== Infinity && mToday.cpa > maxCPA * (isRigorous ? 1.3 : 1.8)) {
+        // Rule 11: CPA today above threshold (needs significant spend first)
+        if (mToday && mToday.cpa && mToday.cpa !== Infinity && mToday.spend > maxCPA * 3 && mToday.cpa > maxCPA * (isRigorous ? 2 : 2.5)) {
             return this._createPauseAction(item, objectType, 'temp_pause_cpa_today',
                 SUFFIXES.TEMP_PAUSE_CPA_TODAY,
                 `CPA hoje alto (R$${mToday.cpa.toFixed(2)}) - reativa a meia-noite`,
@@ -529,8 +529,8 @@ class Optimizer {
             );
         }
 
-        // Rule 12: No conversions today with significant spend
-        if (mToday && mToday.conversions === 0 && mToday.spend > maxCPA * (isRigorous ? 1 : 1.5)) {
+        // Rule 12: No conversions today with significant spend (3x CPA rigorosa, 5x flexivel)
+        if (mToday && mToday.conversions === 0 && mToday.spend > maxCPA * (isRigorous ? 3 : 5)) {
             return this._createPauseAction(item, objectType, 'temp_pause_no_conv_today',
                 SUFFIXES.TEMP_PAUSE_NO_CONV_TODAY,
                 `Sem conversoes hoje (spend R$${mToday.spend.toFixed(2)}) - reativa a meia-noite`,
