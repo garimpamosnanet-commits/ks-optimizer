@@ -192,8 +192,8 @@ module.exports = function(metaAPI, optimizer, database, io) {
 
         // Update campaign nomenclature [KS ON] prefix
         try {
-            if (isEnabled && !wasEnabled) {
-                // Just enabled → add prefix
+            if (isEnabled) {
+                // Ensure prefix exists (idempotent - won't duplicate)
                 await optimizer.addKsOnPrefix(campaignId);
             } else if (!isEnabled && wasEnabled) {
                 // Just disabled → remove prefix
@@ -218,6 +218,25 @@ module.exports = function(metaAPI, optimizer, database, io) {
             } catch (e) {
                 console.error(`[API] Erro ao remover prefix KS ON:`, e.message);
             }
+        }
+    });
+
+    // Sync [KS ON] prefix for all enabled campaigns
+    router.post('/optimization/sync-prefix', async (req, res) => {
+        try {
+            const configs = db.getCampaignConfigs().filter(c => c.enabled);
+            let synced = 0;
+            for (const config of configs) {
+                try {
+                    await optimizer.addKsOnPrefix(config.campaign_id);
+                    synced++;
+                } catch (e) {
+                    console.error(`[API] Sync prefix erro ${config.campaign_id}:`, e.message);
+                }
+            }
+            res.json({ ok: true, synced, total: configs.length });
+        } catch (e) {
+            res.status(400).json({ error: e.message });
         }
     });
 
