@@ -432,7 +432,7 @@ class Optimizer {
 
         // === MINIMUM SPEND GUARD ===
         // Don't evaluate any pause rules until adset has meaningful data
-        const minSpendForRules = Math.max(maxCPA * 5, 10); // At least 5x CPA or R$10
+        const minSpendForRules = Math.max(maxCPA * 5, 25); // At least 5x CPA or R$25
         const totalSpend7d = m7d ? m7d.spend : 0;
         if (totalSpend7d < minSpendForRules) {
             return null; // Not enough data yet, let it run
