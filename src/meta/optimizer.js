@@ -202,6 +202,28 @@ class Optimizer {
             // 5. Apply optimization rules
             this._emitProgress(campaignId, 'optimizing', 'Aplicando regras de otimizacao...');
 
+            // === VOLUME PROTECTION: identify high-volume producers ===
+            // Sort ad sets by 7d conversions to find top producers
+            const activeAdSetsWithConv = adSetData
+                .filter(a => a.status === 'ACTIVE' && a.metrics?.last_7d?.conversions > 0)
+                .sort((a, b) => (b.metrics.last_7d.conversions || 0) - (a.metrics.last_7d.conversions || 0));
+
+            // Top 3 producers (or top 30% of active sets, whichever is larger) are PROTECTED from pausing
+            const protectedCount = Math.max(3, Math.ceil(activeAdSetsWithConv.length * 0.3));
+            const protectedIds = new Set(activeAdSetsWithConv.slice(0, protectedCount).map(a => a.id));
+
+            // Also protect any ad set with 10+ conversions in 7 days (consistent producer)
+            for (const adSet of adSetData) {
+                if (adSet.metrics?.last_7d?.conversions >= 10) {
+                    protectedIds.add(adSet.id);
+                }
+            }
+
+            if (protectedIds.size > 0) {
+                const protectedNames = adSetData.filter(a => protectedIds.has(a.id)).map(a => a.name.substring(0, 40));
+                console.log(`[Optimizer] ${protectedIds.size} conjuntos protegidos por volume: ${protectedNames.join(', ')}`);
+            }
+
             // First pass: Check for reactivation (late conversions)
             for (const adSet of adSetData) {
                 if (adSet.status === 'PAUSED') {
@@ -227,6 +249,13 @@ class Optimizer {
 
                 // Check control tags
                 if (this._hasControlTag(adSet.name, CONTROL_TAGS.MANUAL)) continue;
+
+                // VOLUME PROTECTION: never pause high-volume producers
+                // Instead, they go to budget optimization (reduction) in the 4th pass
+                if (protectedIds.has(adSet.id)) {
+                    console.log(`[Optimizer] PROTEGIDO por volume: ${adSet.name} (${adSet.metrics?.last_7d?.conversions || 0} conv 7d)`);
+                    continue; // Skip pause rules entirely — budget reduction will handle it
+                }
 
                 // Check ad set pause rules
                 const pauseAction = this._checkPauseRules(adSet, config, campaignMetrics, 'adset');
