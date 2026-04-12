@@ -320,17 +320,28 @@ async function renderPerfCampaigns(container) {
                 ? (cpl > config.max_cpa * 1.3 ? 'bad' : cpl > config.max_cpa ? 'warning' : 'good')
                 : '';
 
-            html += buildPerfRow(c.name, spend, leads, cpl, ctr, freq, cplClass);
+            const budget = c.daily_budget ? parseInt(c.daily_budget) / 100 : (c.lifetime_budget ? parseInt(c.lifetime_budget) / 100 : 0);
+            html += buildPerfRow(c.name, spend, leads, cpl, ctr, freq, cplClass, budget);
         } catch (e) { /* skip */ }
     }
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
 async function renderPerfAdsets(container) {
+    // Fetch adsets with budget info
+    const adsets = await api(`/campaigns/${_dashboardCampaigns.map(c=>c.id).join(',')}/adsets`).catch(() => []);
     const insights = await api(`/insights/${_currentAccount}?date_preset=${_dateFilter}&level=adset`);
     if (!insights || insights.length === 0) {
         container.innerHTML = '<div class="empty-state"><h3>Sem dados de conjuntos</h3></div>';
         return;
+    }
+
+    // Build budget map from adsets
+    const budgetMap = {};
+    if (Array.isArray(adsets)) {
+        for (const a of adsets) {
+            budgetMap[a.id] = a.daily_budget ? parseInt(a.daily_budget) / 100 : 0;
+        }
     }
 
     let html = '';
@@ -340,7 +351,8 @@ async function renderPerfAdsets(container) {
         const cpl = leads > 0 ? spend / leads : 0;
         const ctr = parseFloat(raw.ctr) || 0;
         const freq = parseFloat(raw.frequency) || 0;
-        html += buildPerfRow(raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, '');
+        const budget = budgetMap[raw.adset_id] || 0;
+        html += buildPerfRow(raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, '', budget);
     }
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
@@ -359,15 +371,20 @@ async function renderPerfAds(container) {
         const cpl = leads > 0 ? spend / leads : 0;
         const ctr = parseFloat(raw.ctr) || 0;
         const freq = parseFloat(raw.frequency) || 0;
-        html += buildPerfRow(raw.ad_name || raw.ad_id, spend, leads, cpl, ctr, freq, '');
+        html += buildPerfRow(raw.ad_name || raw.ad_id, spend, leads, cpl, ctr, freq, '', 0);
     }
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
-function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass) {
+function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget) {
+    const budgetDisplay = budget ? `R$${formatMoney(budget)}` : '--';
     return `
     <div class="campaign-summary-row">
         <div class="campaign-summary-name" title="${esc(name)}">${esc(name)}</div>
+        <div class="campaign-summary-metric">
+            <div class="label">Budget/dia</div>
+            <div class="value">${budgetDisplay}</div>
+        </div>
         <div class="campaign-summary-metric">
             <div class="label">Gasto</div>
             <div class="value">R$${formatMoney(spend)}</div>

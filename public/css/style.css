@@ -575,7 +575,7 @@ body {
     border-radius: var(--radius-sm);
     padding: 14px 18px;
     display: grid;
-    grid-template-columns: 2fr repeat(5, 1fr);
+    grid-template-columns: 2fr repeat(6, 1fr);
     gap: 12px;
     align-items: center;
     transition: var(--transition);
