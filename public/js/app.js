@@ -395,7 +395,7 @@ function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget) {
         </div>
         <div class="campaign-summary-metric">
             <div class="label">CPL</div>
-            <div class="value ${cplClass}">${cpl > 0 ? 'R$' + formatMoney(cpl) : '--'}</div>
+            <div class="value ${cplClass} ${cpl > 0 && cpl <= 1.0 ? 'cpl-fire' : ''}">${cpl > 0 ? 'R$' + formatMoney(cpl) : '--'}</div>
         </div>
         <div class="campaign-summary-metric">
             <div class="label">CTR</div>

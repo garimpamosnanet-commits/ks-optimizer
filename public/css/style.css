@@ -608,6 +608,18 @@ body {
 .campaign-summary-metric .value.bad { color: var(--danger); }
 .campaign-summary-metric .value.warning { color: var(--warning); }
 
+/* CPL <= R$1.00 — green pulse = SCALE signal */
+.campaign-summary-metric .value.cpl-fire {
+    color: var(--primary);
+    font-weight: 800;
+    animation: cplPulse 2s ease-in-out infinite;
+}
+
+@keyframes cplPulse {
+    0%, 100% { opacity: 1; text-shadow: 0 0 0 transparent; }
+    50% { opacity: 0.85; text-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+}
+
 /* ==================== OPTIMIZATION PAGE ==================== */
 .info-banner {
     background: #1e293b;
