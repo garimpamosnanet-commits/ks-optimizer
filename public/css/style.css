@@ -1283,13 +1283,27 @@ body {
 .opt-status-badge.active {
     background: var(--primary-light);
     color: var(--primary);
+    border: 1px solid var(--primary-border);
 }
-.opt-status-badge.active::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--primary);
+
+/* Animated arrow in loop while optimizing */
+.opt-pulse {
+    animation: optPulseGlow 2s ease-in-out infinite;
+}
+
+.opt-arrow-anim {
+    animation: optArrowBounce 1.5s ease-in-out infinite;
+    color: var(--primary);
+}
+
+@keyframes optArrowBounce {
+    0%, 100% { transform: translateY(2px); opacity: 0.7; }
+    50% { transform: translateY(-3px); opacity: 1; }
+}
+
+@keyframes optPulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3); }
+    50% { box-shadow: 0 0 8px 2px rgba(34, 197, 94, 0.25); }
 }
 .opt-status-badge.paused {
     background: var(--bg-hover);
