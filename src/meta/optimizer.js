@@ -133,17 +133,22 @@ class Optimizer {
                 status: ['ACTIVE', 'PAUSED']
             });
 
-            // 3. Fetch insights for each ad set (multi-window)
-            this._emitProgress(campaignId, 'analyzing', `Analisando ${adSets.length} conjuntos...`);
+            // 3. Fetch insights for each ACTIVE ad set (skip already paused ones for speed)
+            const activeAdSets = adSets.filter(a => a.status === 'ACTIVE');
+            this._emitProgress(campaignId, 'analyzing', `Analisando ${activeAdSets.length} conjuntos ativos (${adSets.length} total)...`);
 
             const adSetData = [];
-            for (const adSet of adSets) {
+            for (let i = 0; i < activeAdSets.length; i++) {
+                const adSet = activeAdSets[i];
+                this._emitProgress(campaignId, 'analyzing', `[${i + 1}/${activeAdSets.length}] ${adSet.name.substring(0, 50)}...`);
+
                 const insights = await this.api.getMultiWindowInsights(adSet.id, ['today', 'last_3d', 'last_7d', 'last_14d', 'last_30d']);
                 const ads = await this.api.getAds(config.account_id, { adset_id: adSet.id });
 
-                // Fetch insights for each ad
+                // Only fetch insights for ACTIVE ads
+                const activeAds = ads.filter(a => a.status === 'ACTIVE');
                 const adData = [];
-                for (const ad of ads) {
+                for (const ad of activeAds) {
                     const adInsights = await this.api.getMultiWindowInsights(ad.id, ['today', 'last_3d', 'last_7d']);
                     adData.push({
                         ...ad,
