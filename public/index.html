@@ -239,10 +239,24 @@
                         </div>
                     </div>
 
-                    <!-- Performance por Campanha -->
+                    <!-- Performance por nivel -->
                     <div class="metrics-section">
-                        <div class="section-title-line">Performance por Campanha</div>
-                        <div id="dashboard-campaigns-summary" class="campaigns-summary">
+                        <div class="section-title-line">Performance</div>
+                        <div class="perf-tabs">
+                            <button class="perf-tab active" onclick="switchPerfTab('campaign')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                                Campanhas
+                            </button>
+                            <button class="perf-tab" onclick="switchPerfTab('adset')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                                Conjuntos de anuncios
+                            </button>
+                            <button class="perf-tab" onclick="switchPerfTab('ad')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                                Anuncios
+                            </button>
+                        </div>
+                        <div id="dashboard-perf-content" class="campaigns-summary">
                             <div class="loading-state"><div class="spinner"></div> Carregando...</div>
                         </div>
                     </div>

@@ -537,6 +537,36 @@ body {
 .metric-compare.down { color: var(--danger); }
 
 /* ==================== CAMPAIGNS SUMMARY ==================== */
+/* Performance Tabs */
+.perf-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 16px;
+    width: fit-content;
+}
+
+.perf-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.perf-tab:not(:last-child) { border-right: 1px solid var(--border); }
+.perf-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.perf-tab.active { background: var(--primary); color: white; font-weight: 600; }
+.perf-tab.active svg { stroke: white; }
+
 .campaigns-summary { display: flex; flex-direction: column; gap: 8px; }
 
 .campaign-summary-row {

@@ -185,7 +185,11 @@ class MetaAPI {
 
     // ==================== INSIGHTS ====================
     async getInsights(objectId, params = {}) {
-        const fields = params.fields || 'spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type,conversions,cost_per_conversion';
+        const defaultFields = 'spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type,conversions,cost_per_conversion';
+        // Add name fields when querying by level
+        let fields = params.fields || defaultFields;
+        if (params.level === 'adset') fields += ',adset_name,adset_id';
+        if (params.level === 'ad') fields += ',ad_name,ad_id,adset_name';
         const insightParams = {
             fields,
             date_preset: params.date_preset || 'last_7d'
