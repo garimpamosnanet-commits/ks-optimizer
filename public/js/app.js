@@ -579,6 +579,81 @@ function switchOptTab(tab) {
     if (btnOptimizeAll) btnOptimizeAll.style.display = tab === 'enabled' ? 'inline-flex' : 'none';
 }
 
+// ==================== BULK CONFIG ====================
+let _bulkPause = 'flexible';
+let _bulkScale = 'accelerated';
+
+function toggleBulkConfig() {
+    const body = document.getElementById('opt-bulk-config-body');
+    const chevron = document.querySelector('.opt-bulk-chevron');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+    } else {
+        body.style.display = 'none';
+        if (chevron) chevron.style.transform = '';
+    }
+}
+
+function setBulkToggle(type, value) {
+    if (type === 'pause') {
+        _bulkPause = value;
+        document.getElementById('bulk-pause-rigorous').classList.toggle('active', value === 'rigorous');
+        document.getElementById('bulk-pause-flexible').classList.toggle('active', value === 'flexible');
+    } else {
+        _bulkScale = value;
+        document.getElementById('bulk-scale-accelerated').classList.toggle('active', value === 'accelerated');
+        document.getElementById('bulk-scale-conservative').classList.toggle('active', value === 'conservative');
+    }
+}
+
+async function applyBulkConfig(andActivate) {
+    const maxCpa = parseMoneyInput(document.getElementById('bulk-max-cpa')?.value || '0');
+    const maxBudget = parseMoneyInput(document.getElementById('bulk-max-budget')?.value || '0');
+
+    if (maxCpa <= 0) {
+        showToast('Configure o CPL Maximo antes de aplicar', 'error');
+        return;
+    }
+
+    const campaigns = _campaigns;
+    if (campaigns.length === 0) {
+        showToast('Nenhuma campanha encontrada', 'error');
+        return;
+    }
+
+    const action = andActivate ? 'Aplicando e ativando' : 'Aplicando';
+    showToast(`${action} em ${campaigns.length} campanhas...`, 'info');
+
+    let count = 0;
+    for (const c of campaigns) {
+        try {
+            const updates = {
+                pause_behavior: _bulkPause,
+                scale_method: _bulkScale,
+                max_cpa: maxCpa,
+                max_daily_budget_cbo: maxBudget,
+                unlimited_scale: maxBudget <= 0
+            };
+            if (andActivate) updates.enabled = true;
+
+            await saveOptConfig(c.id, updates);
+            count++;
+        } catch (e) {
+            console.error(`Erro em ${c.name}:`, e);
+        }
+    }
+
+    if (andActivate && !_settings.auto_optimize) {
+        await api('/settings', 'PUT', { auto_optimize: true });
+        _settings.auto_optimize = true;
+    }
+
+    showToast(`${count} campanha(s) configuradas${andActivate ? ' e ativadas 24/7' : ''}!`, 'success');
+    await loadOptimizationPage();
+    if (andActivate) switchOptTab('enabled');
+}
+
 async function activateAllOptimization() {
     const disabled = _campaigns.filter(c => {
         const cfg = _configs.find(cfg => cfg.campaign_id === c.id);

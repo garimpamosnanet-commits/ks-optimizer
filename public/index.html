@@ -281,6 +281,60 @@
                         </div>
                     </div>
 
+                    <!-- BULK CONFIG -->
+                    <div class="opt-bulk-config" id="opt-bulk-config">
+                        <div class="opt-bulk-config-header" onclick="toggleBulkConfig()">
+                            <span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                                Configuracao em massa — aplicar em todas as campanhas
+                            </span>
+                            <svg class="opt-bulk-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg>
+                        </div>
+                        <div class="opt-bulk-config-body" id="opt-bulk-config-body" style="display:none">
+                            <div class="opt-bulk-config-grid">
+                                <div class="opt-control-group">
+                                    <label>Comportamento para pausar:</label>
+                                    <div class="toggle-group">
+                                        <button class="toggle-option" id="bulk-pause-rigorous" onclick="setBulkToggle('pause', 'rigorous')">Pausa Rigorosa</button>
+                                        <button class="toggle-option active" id="bulk-pause-flexible" onclick="setBulkToggle('pause', 'flexible')">Pausa Flexivel</button>
+                                    </div>
+                                </div>
+                                <div class="opt-control-group">
+                                    <label>Metodo de escala:</label>
+                                    <div class="toggle-group">
+                                        <button class="toggle-option active" id="bulk-scale-accelerated" onclick="setBulkToggle('scale', 'accelerated')">Escala Acelerada</button>
+                                        <button class="toggle-option" id="bulk-scale-conservative" onclick="setBulkToggle('scale', 'conservative')">Escala Conservadora</button>
+                                    </div>
+                                </div>
+                                <div class="opt-param-group">
+                                    <label>CPL Maximo para PAUSAR (R$)</label>
+                                    <div class="opt-param-input">
+                                        <span class="opt-param-prefix">BRL</span>
+                                        <input type="text" id="bulk-max-cpa" value="1,12" placeholder="0,00">
+                                    </div>
+                                </div>
+                                <div class="opt-param-group">
+                                    <label>Orcamento Diario Maximo CBO (R$)</label>
+                                    <div class="opt-param-input">
+                                        <span class="opt-param-prefix">BRL</span>
+                                        <input type="text" id="bulk-max-budget" value="0,00" placeholder="0 = sem limite">
+                                    </div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Deixe 0,00 para escala ilimitada</div>
+                                </div>
+                            </div>
+                            <div class="opt-bulk-config-actions">
+                                <button class="btn btn-primary" onclick="applyBulkConfig(false)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/></svg>
+                                    Aplicar em Todas (so salvar)
+                                </button>
+                                <button class="btn btn-primary" onclick="applyBulkConfig(true)" style="background:var(--primary-hover)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+                                    Aplicar e Ativar Todas
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Tabs + Bulk Actions -->
                     <div class="opt-tabs-bar">
                         <div class="opt-tabs">
