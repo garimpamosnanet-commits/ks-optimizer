@@ -247,7 +247,8 @@ async function loadDashboard() {
         }
 
         // Load real entries from SalesEcommerce
-        await loadRealEntries(raw ? parseFloat(raw.spend) || 0 : 0);
+        const metaLeads = raw ? extractLeads(raw.actions) : 0;
+        await loadRealEntries(raw ? parseFloat(raw.spend) || 0 : 0, metaLeads);
 
         // Load campaign performance
         const campaigns = await api(`/campaigns?account_id=${_currentAccount}&status=ACTIVE`);
@@ -274,7 +275,7 @@ const ACCOUNT_INSTANCE_MAP = {
 };
 let _entriesData = null;
 
-async function loadRealEntries(totalSpend) {
+async function loadRealEntries(totalSpend, metaLeads) {
     const instanceName = ACCOUNT_INSTANCE_MAP[_currentAccount];
     const section = document.getElementById('section-entries');
 
@@ -317,10 +318,13 @@ async function loadRealEntries(totalSpend) {
         const netEntries = totalJoins - totalFastExits;
         const cplReal = totalJoins > 0 && totalSpend > 0 ? totalSpend / totalJoins : 0;
 
+        setText('stat-leads-meta', formatNumber(metaLeads || 0));
         setText('stat-entries', formatNumber(totalJoins));
         setText('stat-fast-exits', formatNumber(totalFastExits));
         setText('stat-net-entries', formatNumber(netEntries));
         setText('stat-cpl-real', cplReal > 0 ? `R$ ${formatMoney(cplReal)}` : '--');
+        const convRate = metaLeads > 0 && totalJoins > 0 ? ((totalJoins / metaLeads) * 100) : 0;
+        setText('stat-conv-rate', convRate > 0 ? `${convRate.toFixed(1)}%` : '--');
 
         if (section) section.style.display = 'block';
         _entriesData = { totalJoins, totalFastExits, netEntries, cplReal };
