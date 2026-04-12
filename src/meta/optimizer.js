@@ -250,11 +250,21 @@ class Optimizer {
                 // Check control tags
                 if (this._hasControlTag(adSet.name, CONTROL_TAGS.MANUAL)) continue;
 
-                // VOLUME PROTECTION: never pause high-volume producers
-                // Instead, they go to budget optimization (reduction) in the 4th pass
+                // VOLUME PROTECTION: high-volume producers get special treatment
+                // Protected from pause IF CPL is not extreme. If CPL > 2x max, pause anyway.
                 if (protectedIds.has(adSet.id)) {
-                    console.log(`[Optimizer] PROTEGIDO por volume: ${adSet.name} (${adSet.metrics?.last_7d?.conversions || 0} conv 7d)`);
-                    continue; // Skip pause rules entirely — budget reduction will handle it
+                    const cpa7d = adSet.metrics?.last_7d?.cpa;
+                    const maxCPA = config.max_cpa;
+
+                    if (cpa7d && cpa7d !== Infinity && cpa7d > maxCPA * 2) {
+                        // CPL muito alto (2x+) — pausa mesmo com volume (desperdicando dinheiro)
+                        console.log(`[Optimizer] Volume alto MAS CPL ${cpa7d.toFixed(2)} > 2x max (${maxCPA.toFixed(2)}) — PAUSANDO: ${adSet.name}`);
+                        // Fall through to pause rules
+                    } else {
+                        // CPL aceitavel — protege de pausa, reduz budget no 4th pass se necessario
+                        console.log(`[Optimizer] PROTEGIDO por volume: ${adSet.name} (${adSet.metrics?.last_7d?.conversions || 0} conv, CPL R$${(cpa7d || 0).toFixed(2)})`);
+                        continue;
+                    }
                 }
 
                 // Check ad set pause rules
