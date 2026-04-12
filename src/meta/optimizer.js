@@ -78,6 +78,18 @@ const CONTROL_TAGS = {
     ACTIVE_DAILY: '[ativo diariamente]'
 };
 
+// ==================== SAFETY GUARDRAILS ====================
+const GUARDRAILS = {
+    MAX_ACTIONS_PER_CYCLE: 10,        // Max actions per campaign per cycle (prevent mass changes)
+    MAX_BUDGET_INCREASE_PCT: 30,      // Never increase budget more than 30% in one shot
+    MAX_BUDGET_DECREASE_PCT: 30,      // Never decrease budget more than 30% in one shot
+    MIN_BUDGET_BRL: 5,                // Never set budget below R$5/day
+    MIN_CONVERSIONS_TO_SCALE: 3,      // Need at least 3 conversions to trust the data for scaling
+    MIN_CONVERSIONS_TO_DUPLICATE: 5,  // Need 5+ conversions to justify duplication
+    MAX_DUPLICATIONS_PER_DAY: 1,      // Max 1 duplication per ad set per day
+    COOLDOWN_HOURS_AFTER_SCALE: 6,    // Wait 6h after scaling before scaling again
+};
+
 class Optimizer {
     constructor(metaAPI, database, io) {
         this.api = metaAPI;
@@ -280,7 +292,11 @@ class Optimizer {
                 }
             }
 
-            // 6. Execute actions
+            // 6. Execute actions (capped by guardrails)
+            if (results.actions.length > GUARDRAILS.MAX_ACTIONS_PER_CYCLE) {
+                console.log(`[Optimizer] ${results.actions.length} acoes detectadas, limitando a ${GUARDRAILS.MAX_ACTIONS_PER_CYCLE}`);
+                results.actions = results.actions.slice(0, GUARDRAILS.MAX_ACTIONS_PER_CYCLE);
+            }
             this._emitProgress(campaignId, 'executing', `Executando ${results.actions.length} acoes...`);
 
             for (const action of results.actions) {
@@ -641,33 +657,57 @@ class Optimizer {
         const m3d = metrics.last_3d;
         const mToday = metrics.today;
 
-        // MINIMUM AGE FOR SCALE — at least 24h of data before scaling
+        // MINIMUM AGE — at least 24h before scaling
         const createdTime = adSet.created_time ? new Date(adSet.created_time) : null;
         const ageHours = createdTime ? (new Date() - createdTime) / (1000 * 60 * 60) : 999;
-        if (ageHours < 24) {
-            return null; // Need at least 1 day of data before scaling
-        }
+        if (ageHours < 24) return null;
 
         if (!m7d || !m7d.cpa || m7d.cpa === Infinity) return null;
 
-        // Only scale if performing well
-        if (m7d.cpa > maxCPA * 0.8) return null;
+        // Only scale if CPA is below 85% of max (confirmed good performer)
+        if (m7d.cpa > maxCPA * 0.85) return null;
+
+        // Need minimum conversions to trust the data
+        if (m7d.conversions < GUARDRAILS.MIN_CONVERSIONS_TO_SCALE) return null;
 
         // Check budget limits
         const currentBudget = parseInt(adSet.daily_budget) / 100 || 0;
         if (!config.unlimited_scale && currentBudget >= maxBudget && maxBudget > 0) return null;
 
-        // === ESCALA HORIZONTAL (duplicate ad set) ===
-        if (isAccelerated && m7d.conversions >= 5 && m7d.cpa <= maxCPA * 0.6) {
+        // COOLDOWN — check if this ad set was scaled recently (last 6h)
+        const recentScaleLogs = db.getOptimizationLog({ campaign_id: config.campaign_id, limit: 50 });
+        const wasScaledRecently = recentScaleLogs.some(log => {
+            if (log.object_id !== adSet.id) return false;
+            if (!log.action.includes('scale')) return false;
+            const hoursAgo = (Date.now() - new Date(log.timestamp)) / (1000 * 60 * 60);
+            return hoursAgo < GUARDRAILS.COOLDOWN_HOURS_AFTER_SCALE;
+        });
+        if (wasScaledRecently) return null;
+
+        // Helper: cap budget increase
+        const capBudget = (newBudget) => {
+            const maxIncrease = currentBudget * (1 + GUARDRAILS.MAX_BUDGET_INCREASE_PCT / 100);
+            let capped = Math.min(newBudget, maxIncrease);
+            if (!config.unlimited_scale && maxBudget > 0) capped = Math.min(capped, maxBudget);
+            return Math.round(capped * 100) / 100;
+        };
+
+        // === ESCALA HORIZONTAL (duplicate) — only for proven winners ===
+        if (isAccelerated
+            && m7d.conversions >= GUARDRAILS.MIN_CONVERSIONS_TO_DUPLICATE
+            && m7d.cpa <= maxCPA * 0.6
+            && m3d && m3d.cpa && m3d.cpa !== Infinity && m3d.cpa <= maxCPA * 0.7) {
+            // Confirmed: good in both 3d AND 7d windows
             return {
                 type: 'scale_horizontal',
                 object_type: 'adset',
                 object_id: adSet.id,
                 object_name: adSet.name,
                 suffix: SUFFIXES.SCALE_HORIZONTAL,
-                reason: `Performance excelente (CPA R$${m7d.cpa.toFixed(2)} = ${((m7d.cpa / maxCPA) * 100).toFixed(0)}% do max) - duplicando`,
+                reason: `Performance confirmada (CPA 7d R$${m7d.cpa.toFixed(2)}, 3d R$${m3d.cpa.toFixed(2)}, ${m7d.conversions} conv) - duplicando`,
                 details: {
                     current_cpa: m7d.cpa,
+                    cpa_3d: m3d.cpa,
                     max_cpa: maxCPA,
                     conversions_7d: m7d.conversions,
                     action: 'duplicate'
@@ -675,10 +715,12 @@ class Optimizer {
             };
         }
 
-        // === ESCALA VERTICAL AGRESSIVA (>20% increase) ===
-        if (isAccelerated && m3d && m3d.cpa && m3d.cpa !== Infinity && m3d.cpa <= maxCPA * 0.5) {
-            const increase = 0.3; // 30% increase
-            const newBudget = Math.min(currentBudget * (1 + increase), maxBudget || Infinity);
+        // === ESCALA VERTICAL AGRESSIVA (+20-30%) — CPA excelente e consistente ===
+        if (isAccelerated && m3d && m3d.cpa && m3d.cpa !== Infinity
+            && m3d.cpa <= maxCPA * 0.5 && m7d.cpa <= maxCPA * 0.6
+            && m3d.conversions >= 3) {
+            const increase = Math.min(0.25, GUARDRAILS.MAX_BUDGET_INCREASE_PCT / 100);
+            const newBudget = capBudget(currentBudget * (1 + increase));
 
             if (newBudget > currentBudget) {
                 return {
@@ -687,10 +729,10 @@ class Optimizer {
                     object_id: adSet.id,
                     object_name: adSet.name,
                     suffix: SUFFIXES.SCALE_VERTICAL_AGGRESSIVE,
-                    reason: `CPA excelente 3d (R$${m3d.cpa.toFixed(2)}) - aumento agressivo de budget`,
+                    reason: `CPA excelente (3d R$${m3d.cpa.toFixed(2)}, 7d R$${m7d.cpa.toFixed(2)}) - budget +${Math.round((newBudget / currentBudget - 1) * 100)}%`,
                     details: {
                         current_budget: currentBudget,
-                        new_budget: Math.round(newBudget * 100) / 100,
+                        new_budget: newBudget,
                         increase_pct: Math.round((newBudget / currentBudget - 1) * 100),
                         action: 'increase_budget'
                     }
@@ -698,10 +740,10 @@ class Optimizer {
             }
         }
 
-        // === ESCALA VERTICAL CONSERVADORA (10-15% increase) ===
-        if (m7d.cpa <= maxCPA * 0.7 && m7d.conversions >= 3) {
-            const increase = isAccelerated ? 0.2 : 0.1; // 20% or 10%
-            const newBudget = Math.min(currentBudget * (1 + increase), maxBudget || Infinity);
+        // === ESCALA VERTICAL CONSERVADORA (+10-15%) — CPA bom e estavel ===
+        if (m7d.cpa <= maxCPA * 0.75 && m7d.conversions >= GUARDRAILS.MIN_CONVERSIONS_TO_SCALE) {
+            const increase = isAccelerated ? 0.15 : 0.10;
+            const newBudget = capBudget(currentBudget * (1 + increase));
 
             if (newBudget > currentBudget) {
                 return {
@@ -710,10 +752,10 @@ class Optimizer {
                     object_id: adSet.id,
                     object_name: adSet.name,
                     suffix: SUFFIXES.SCALE_VERTICAL,
-                    reason: `CPA bom 7d (R$${m7d.cpa.toFixed(2)}) - aumento conservador`,
+                    reason: `CPA bom 7d (R$${m7d.cpa.toFixed(2)}, ${m7d.conversions} conv) - budget +${Math.round((newBudget / currentBudget - 1) * 100)}%`,
                     details: {
                         current_budget: currentBudget,
-                        new_budget: Math.round(newBudget * 100) / 100,
+                        new_budget: newBudget,
                         increase_pct: Math.round((newBudget / currentBudget - 1) * 100),
                         action: 'increase_budget'
                     }
@@ -721,10 +763,10 @@ class Optimizer {
             }
         }
 
-        // === SURFANDO CONVERSOES HOJE ===
+        // === SURFANDO CONVERSOES HOJE — CPA muito bom hoje, aproveitar o momento ===
         if (mToday && mToday.conversions >= 3 && mToday.cpa && mToday.cpa !== Infinity && mToday.cpa <= maxCPA * 0.5) {
-            const increase = isAccelerated ? 0.5 : 0.25;
-            const newBudget = Math.min(currentBudget * (1 + increase), maxBudget || Infinity);
+            const increase = Math.min(isAccelerated ? 0.30 : 0.20, GUARDRAILS.MAX_BUDGET_INCREASE_PCT / 100);
+            const newBudget = capBudget(currentBudget * (1 + increase));
 
             if (newBudget > currentBudget) {
                 return {
@@ -733,10 +775,10 @@ class Optimizer {
                     object_id: adSet.id,
                     object_name: adSet.name,
                     suffix: SUFFIXES.SCALE_SURFING,
-                    reason: `Surfando conversoes hoje (${mToday.conversions} conv, CPA R$${mToday.cpa.toFixed(2)})`,
+                    reason: `Surfando (${mToday.conversions} conv hoje, CPA R$${mToday.cpa.toFixed(2)}) - budget +${Math.round((newBudget / currentBudget - 1) * 100)}%`,
                     details: {
                         current_budget: currentBudget,
-                        new_budget: Math.round(newBudget * 100) / 100,
+                        new_budget: newBudget,
                         increase_pct: Math.round((newBudget / currentBudget - 1) * 100),
                         conversions_today: mToday.conversions,
                         action: 'increase_budget'
