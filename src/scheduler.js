@@ -16,39 +16,42 @@ class Scheduler {
 
     start() {
         const settings = db.getSettings();
+        const intervalMinutes = settings.optimization_interval_minutes || 15;
+        const intervalMs = intervalMinutes * 60 * 1000;
 
-        // Optimization interval
-        if (settings.auto_optimize) {
-            const intervalMs = (settings.optimization_interval_minutes || 30) * 60 * 1000;
-            this._interval = setInterval(async () => {
-                if (this.optimizer.isRunning()) {
-                    console.log('[Scheduler] Otimizacao ja em execucao, pulando...');
-                    return;
+        // Optimization interval — always runs, checks auto_optimize flag each cycle
+        this._interval = setInterval(async () => {
+            const currentSettings = db.getSettings();
+            if (!currentSettings.auto_optimize) return;
+
+            if (this.optimizer.isRunning()) {
+                console.log('[Scheduler] Otimizacao ja em execucao, pulando...');
+                return;
+            }
+
+            const configs = db.getCampaignConfigs().filter(c => c.enabled);
+            if (configs.length === 0) return;
+
+            console.log(`[Scheduler] Executando otimizacao automatica (${configs.length} campanhas habilitadas)...`);
+            try {
+                const results = await this.optimizer.optimizeAll();
+                const totalActions = results.reduce((sum, r) => sum + (r.total_actions || 0), 0);
+                console.log(`[Scheduler] Otimizacao concluida: ${configs.length} campanhas, ${totalActions} acoes`);
+
+                if (this.io) {
+                    this.io.emit('optimization_complete', {
+                        campaigns: results.length,
+                        total_actions: totalActions,
+                        timestamp: new Date().toISOString()
+                    });
                 }
+            } catch (e) {
+                console.error('[Scheduler] Erro na otimizacao:', e.message);
+            }
+        }, intervalMs);
 
-                const currentSettings = db.getSettings();
-                if (!currentSettings.auto_optimize) return;
+        console.log(`[Scheduler] Auto-otimizacao a cada ${intervalMinutes} min (auto_optimize=${settings.auto_optimize})`);
 
-                console.log('[Scheduler] Executando otimizacao automatica...');
-                try {
-                    const results = await this.optimizer.optimizeAll();
-                    const totalActions = results.reduce((sum, r) => sum + (r.total_actions || 0), 0);
-                    console.log(`[Scheduler] Otimizacao concluida: ${results.length} campanhas, ${totalActions} acoes`);
-
-                    if (this.io) {
-                        this.io.emit('optimization_complete', {
-                            campaigns: results.length,
-                            total_actions: totalActions,
-                            timestamp: new Date().toISOString()
-                        });
-                    }
-                } catch (e) {
-                    console.error('[Scheduler] Erro na otimizacao:', e.message);
-                }
-            }, intervalMs);
-
-            console.log(`[Scheduler] Auto-otimizacao a cada ${settings.optimization_interval_minutes} min`);
-        }
 
         // Midnight reset for temporary pauses
         this._scheduleMidnight();

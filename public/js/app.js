@@ -1,4 +1,4 @@
-// ==================== KS OPTIMIZER - FRONTEND ====================
+// ==================== KS OPTIMIZER — FRONTEND ====================
 const socket = io();
 let _accounts = [];
 let _currentAccount = null;
@@ -6,30 +6,40 @@ let _campaigns = [];
 let _configs = [];
 let _dateFilter = localStorage.getItem('ks-date-filter') || 'last_7d';
 let _settings = {};
-let _todayOptCounts = {}; // { campaignId: count }
+let _currentPage = 'dashboard';
+let _optTab = 'enabled';
 
 // ==================== THEME ====================
 function toggleTheme() {
-    const html = document.documentElement;
-    const current = html.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', next);
-    localStorage.setItem('ks-theme', next);
-    updateThemeIcon(next);
+    const current = document.documentElement.getAttribute('data-theme') || '';
+    const next = current === 'dark' ? '' : 'dark';
+    if (next) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+    localStorage.setItem('ks-theme', next || 'light');
+    updateThemeIcon();
 }
 
-function updateThemeIcon(theme) {
-    const icon = document.getElementById('theme-icon');
-    if (icon) {
-        // Moon for dark, Sun for light
-        icon.innerHTML = theme === 'dark' ? '&#9790;' : '&#9728;';
+function updateThemeIcon() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const svg = document.getElementById('theme-icon-svg');
+    if (svg) {
+        svg.innerHTML = isDark
+            ? '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>'
+            : '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
     }
 }
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
-    // Sync theme icon with current theme
-    updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'dark');
+    // Apply saved theme
+    const savedTheme = localStorage.getItem('ks-theme') || 'light';
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    updateThemeIcon();
     await checkSetup();
 });
 
@@ -37,7 +47,6 @@ async function checkSetup() {
     try {
         const resp = await api('/settings');
         _settings = resp;
-
         if (!resp.has_token) {
             showSetupWizard();
         } else {
@@ -53,7 +62,7 @@ async function checkSetup() {
 }
 
 function showSetupWizard() {
-    document.getElementById('setup-wizard').style.display = 'block';
+    document.getElementById('setup-wizard').style.display = 'flex';
     document.getElementById('main-app').style.display = 'none';
 }
 
@@ -61,7 +70,6 @@ async function loadApp() {
     document.getElementById('setup-wizard').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
 
-    // Load accounts
     try {
         _accounts = await api('/accounts');
     } catch (e) {
@@ -69,11 +77,8 @@ async function loadApp() {
     }
 
     populateAccountSelect();
-
-    // Load settings into UI
     loadSettingsUI();
 
-    // Restore saved account or auto-select first
     if (_accounts.length > 0) {
         const saved = localStorage.getItem('ks-selected-account');
         const exists = saved && _accounts.some(a => a.id === saved);
@@ -82,25 +87,12 @@ async function loadApp() {
         await onAccountChange();
     }
 
-    // Setup socket listeners
     setupSocketListeners();
 
-    // Setup search
-    document.getElementById('campaign-search').addEventListener('input', filterCampaigns);
+    const savedPage = localStorage.getItem('ks-active-page') || 'dashboard';
+    navigateTo(savedPage);
 
-    // Restore saved tab
-    const savedTab = localStorage.getItem('ks-active-tab');
-    if (savedTab) switchTab(savedTab);
-
-    // Sync date filter buttons with saved filter
-    document.querySelectorAll('.date-filter-btn').forEach(b => {
-        b.classList.toggle('active',
-            (_dateFilter === 'today' && b.textContent === 'Hoje') ||
-            (_dateFilter === 'last_3d' && b.textContent === '3D') ||
-            (_dateFilter === 'last_7d' && b.textContent === '7D') ||
-            (_dateFilter === 'last_14d' && b.textContent === '14D') ||
-            (_dateFilter === 'last_30d' && b.textContent === '30D'));
-    });
+    syncDateFilterButtons();
 }
 
 // ==================== SETUP WIZARD ====================
@@ -115,29 +107,24 @@ async function setupValidateToken() {
     errEl.style.display = 'none';
 
     try {
-        // Save token first
         await api('/token', 'PUT', { token });
-
-        // Then validate
         const data = await api('/token/validate', 'POST');
 
         if (data.accounts && data.accounts.length > 0) {
-            // Save accounts
             await api('/accounts/discover', 'POST');
             _accounts = await api('/accounts');
 
-            // Show step 2
             document.getElementById('setup-step-1').style.display = 'none';
             document.getElementById('setup-step-2').style.display = 'block';
 
             const container = document.getElementById('setup-accounts');
             container.innerHTML = data.accounts.map(a => `
-                <div class="account-item">
-                    <div>
-                        <div style="font-size:14px;font-weight:600">${esc(a.name)}</div>
-                        <div style="font-size:12px;color:var(--text-muted)">${a.id}</div>
+                <div class="account-card">
+                    <div class="account-card-info">
+                        <h4>${esc(a.name)}</h4>
+                        <p>${a.id} - ${a.currency || 'BRL'}</p>
                     </div>
-                    <span class="badge badge-success">Conectada</span>
+                    <span class="opt-status-badge active">Conectada</span>
                 </div>
             `).join('');
         } else {
@@ -159,15 +146,10 @@ async function setupComplete() {
 
 // ==================== API HELPER ====================
 async function api(path, method = 'GET', body = null) {
-    const opts = {
-        method,
-        headers: { 'Content-Type': 'application/json' }
-    };
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) opts.body = JSON.stringify(body);
-
     const resp = await fetch(`/api${path}`, opts);
     const data = await resp.json();
-
     if (!resp.ok) {
         const err = new Error(data.error || 'Erro na API');
         err.status = resp.status;
@@ -176,14 +158,45 @@ async function api(path, method = 'GET', body = null) {
     return data;
 }
 
-// ==================== ACCOUNT ====================
+// ==================== NAVIGATION ====================
+function navigateTo(page) {
+    _currentPage = page;
+    localStorage.setItem('ks-active-page', page);
+
+    // Update sidebar
+    document.querySelectorAll('.sidebar-link').forEach(el => {
+        el.classList.toggle('active', el.dataset.page === page);
+    });
+
+    // Switch page
+    document.querySelectorAll('.page').forEach(el => {
+        el.classList.toggle('active', el.id === `page-${page}`);
+    });
+
+    // Load page-specific data
+    if (page === 'dashboard') loadDashboard();
+    if (page === 'optimization') loadOptimizationPage();
+    if (page === 'log') loadOptLog();
+    if (page === 'accounts') loadAccountsPage();
+    if (page === 'settings') loadSettingsUI();
+    if (page === 'suffixes') loadSuffixesPage();
+}
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const main = document.querySelector('.main-content');
+    sidebar.classList.toggle('collapsed');
+    main.classList.toggle('expanded');
+}
+
+// ==================== ACCOUNT SELECT ====================
 function populateAccountSelect() {
     const sel = document.getElementById('account-select');
     sel.innerHTML = '<option value="">Selecione uma conta</option>';
     for (const acc of _accounts) {
         const opt = document.createElement('option');
         opt.value = acc.id;
-        opt.textContent = `${acc.name || acc.id}`;
+        opt.textContent = acc.name ? `${acc.name}` : acc.id;
         sel.appendChild(opt);
     }
 }
@@ -191,16 +204,14 @@ function populateAccountSelect() {
 async function onAccountChange() {
     _currentAccount = document.getElementById('account-select').value;
     if (!_currentAccount) return;
-
-    // Persist selected account
     localStorage.setItem('ks-selected-account', _currentAccount);
 
-    await Promise.all([
-        loadDashboard(),
-        loadCampaigns(),
-        loadOptConfigs(),
-        loadOptLog()
-    ]);
+    updateHeaderStatus('online');
+
+    // Load data for current page
+    if (_currentPage === 'dashboard') await loadDashboard();
+    if (_currentPage === 'optimization') await loadOptimizationPage();
+    if (_currentPage === 'log') await loadOptLog();
 }
 
 // ==================== DASHBOARD ====================
@@ -208,7 +219,6 @@ async function loadDashboard() {
     if (!_currentAccount) return;
 
     try {
-        // Account insights
         const insights = await api(`/insights/${_currentAccount}?date_preset=${_dateFilter}&level=account`);
         const raw = insights[0] || null;
 
@@ -221,666 +231,534 @@ async function loadDashboard() {
             const cpc = parseFloat(raw.cpc) || 0;
             const cpm = parseFloat(raw.cpm) || 0;
             const freq = parseFloat(raw.frequency) || 0;
-            const convs = extractConversions(raw.actions);
-            const cpa = convs > 0 ? spend / convs : 0;
+            const leads = extractLeads(raw.actions);
+            const cpl = leads > 0 ? spend / leads : 0;
 
-            setText('stat-spend', `R$ ${spend.toFixed(2)}`);
-            setText('stat-conversions', convs.toString());
-            setText('stat-cpa', cpa > 0 ? `R$ ${cpa.toFixed(2)}` : '--');
-            setText('stat-ctr', `${ctr.toFixed(2)}%`);
-            setText('stat-cpc', `R$ ${cpc.toFixed(2)}`);
-            setText('stat-cpm', `R$ ${cpm.toFixed(2)}`);
+            setText('stat-spend', `R$ ${formatMoney(spend)}`);
+            setText('stat-leads', formatNumber(leads));
+            setText('stat-cpl', cpl > 0 ? `R$ ${formatMoney(cpl)}` : 'R$ 0,00');
             setText('stat-impressions', formatNumber(impressions));
             setText('stat-reach', formatNumber(reach));
-            setText('stat-clicks', formatNumber(clicks));
             setText('stat-frequency', freq.toFixed(2));
+            setText('stat-ctr', `${ctr.toFixed(2)}%`);
+            setText('stat-cpc', `R$ ${formatMoney(cpc)}`);
+            setText('stat-cpm', `R$ ${formatMoney(cpm)}`);
+            setText('stat-clicks', formatNumber(clicks));
         }
 
-        // Active campaigns count
+        // Load campaign performance
         const campaigns = await api(`/campaigns?account_id=${_currentAccount}&status=ACTIVE`);
-        setText('stat-active-campaigns', campaigns.length.toString());
-
-        // Today's optimizations
-        const logs = await api(`/optimization/log?account_id=${_currentAccount}&limit=1000`);
-        const today = new Date().toISOString().slice(0, 10);
-        const todayLogs = logs.filter(l => l.timestamp.slice(0, 10) === today);
-        setText('stat-optimizations-today', todayLogs.length.toString());
-
-        // Campaign performance summary
         await loadDashboardCampaigns(campaigns);
 
     } catch (e) {
         console.error('Dashboard error:', e);
     }
-
-    updateHeaderStatus();
 }
 
 async function loadDashboardCampaigns(campaigns) {
     const container = document.getElementById('dashboard-campaigns-summary');
-
     if (!campaigns || campaigns.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">📊</div><h3>Nenhuma campanha ativa</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>Nenhuma campanha ativa</h3><p>Selecione uma conta com campanhas ativas.</p></div>';
         return;
     }
 
     let html = '';
-    for (const c of campaigns.slice(0, 10)) {
+    for (const c of campaigns.slice(0, 15)) {
         try {
             const ins = await api(`/insights/${c.id}?date_preset=${_dateFilter}`);
             const raw = ins[0] || {};
             const spend = parseFloat(raw.spend) || 0;
-            const convs = extractConversions(raw.actions);
-            const cpa = convs > 0 ? spend / convs : 0;
+            const leads = extractLeads(raw.actions);
+            const cpl = leads > 0 ? spend / leads : 0;
             const ctr = parseFloat(raw.ctr) || 0;
             const freq = parseFloat(raw.frequency) || 0;
             const config = c.optimization_config;
-
-            const cpaClass = config && config.max_cpa ? (cpa > config.max_cpa ? 'bad' : cpa > config.max_cpa * 0.8 ? 'warning' : 'good') : '';
+            const cplClass = config && config.max_cpa
+                ? (cpl > config.max_cpa * 1.3 ? 'bad' : cpl > config.max_cpa ? 'warning' : 'good')
+                : '';
 
             html += `
-            <div class="campaign-card">
-                <div class="campaign-header">
-                    <div class="campaign-name">${esc(c.name)}</div>
-                    <span class="campaign-status ${c.status.toLowerCase()}">
-                        <span class="dot"></span> ${c.status}
-                    </span>
+            <div class="campaign-summary-row">
+                <div class="campaign-summary-name" title="${esc(c.name)}">${esc(c.name)}</div>
+                <div class="campaign-summary-metric">
+                    <div class="label">Gasto</div>
+                    <div class="value">R$${formatMoney(spend)}</div>
                 </div>
-                <div class="campaign-metrics">
-                    <div class="campaign-metric">
-                        <div class="metric-label">Spend</div>
-                        <div class="metric-value">R$${spend.toFixed(2)}</div>
-                    </div>
-                    <div class="campaign-metric">
-                        <div class="metric-label">Conversoes</div>
-                        <div class="metric-value">${convs}</div>
-                    </div>
-                    <div class="campaign-metric">
-                        <div class="metric-label">CPA</div>
-                        <div class="metric-value ${cpaClass}">${cpa > 0 ? 'R$' + cpa.toFixed(2) : '--'}</div>
-                    </div>
-                    <div class="campaign-metric">
-                        <div class="metric-label">CTR</div>
-                        <div class="metric-value">${ctr.toFixed(2)}%</div>
-                    </div>
-                    <div class="campaign-metric">
-                        <div class="metric-label">Freq</div>
-                        <div class="metric-value ${freq > 3.5 ? 'bad' : freq > 3.0 ? 'warning' : ''}">${freq.toFixed(2)}</div>
-                    </div>
+                <div class="campaign-summary-metric">
+                    <div class="label">Leads</div>
+                    <div class="value">${leads}</div>
                 </div>
-                ${config ? `
-                <div class="campaign-footer">
-                    <div class="campaign-config-badges">
-                        <span class="badge ${config.pause_behavior === 'rigorous' ? 'badge-danger' : 'badge-warning'}">
-                            ${config.pause_behavior === 'rigorous' ? 'Pausa Rigorosa' : 'Pausa Flexivel'}
-                        </span>
-                        <span class="badge ${config.scale_method === 'accelerated' ? 'badge-success' : 'badge-info'}">
-                            ${config.scale_method === 'accelerated' ? 'Escala Acelerada' : 'Escala Conservadora'}
-                        </span>
-                        <span class="badge badge-muted">CPA max: R$${config.max_cpa.toFixed(2)}</span>
-                    </div>
+                <div class="campaign-summary-metric">
+                    <div class="label">CPL</div>
+                    <div class="value ${cplClass}">${cpl > 0 ? 'R$' + formatMoney(cpl) : '--'}</div>
                 </div>
-                ` : ''}
+                <div class="campaign-summary-metric">
+                    <div class="label">CTR</div>
+                    <div class="value">${ctr.toFixed(2)}%</div>
+                </div>
+                <div class="campaign-summary-metric">
+                    <div class="label">Freq</div>
+                    <div class="value ${freq > 3.5 ? 'warning' : ''}">${freq.toFixed(1)}</div>
+                </div>
             </div>`;
         } catch (e) {
-            html += `<div class="campaign-card"><div class="campaign-name">${esc(c.name)}</div><div style="color:var(--text-muted);font-size:12px">Erro ao carregar metricas</div></div>`;
+            // Skip campaigns with insight errors
         }
     }
 
-    container.innerHTML = html;
+    container.innerHTML = html || '<div class="empty-state"><h3>Sem dados de performance</h3></div>';
 }
 
 function setDateFilter(preset) {
     _dateFilter = preset;
     localStorage.setItem('ks-date-filter', preset);
-    document.querySelectorAll('.date-filter-btn').forEach(b => {
-        b.classList.toggle('active', b.textContent.toLowerCase().replace(' ', '') === preset.replace('last_', '').replace('d', 'D') ||
-            (preset === 'today' && b.textContent === 'Hoje') ||
-            (preset === 'last_3d' && b.textContent === '3D') ||
-            (preset === 'last_7d' && b.textContent === '7D') ||
-            (preset === 'last_14d' && b.textContent === '14D') ||
-            (preset === 'last_30d' && b.textContent === '30D'));
-    });
+    syncDateFilterButtons();
     loadDashboard();
 }
 
-// ==================== CAMPAIGNS ====================
-async function loadCampaigns() {
+function syncDateFilterButtons() {
+    const map = { today: 'Hoje', last_3d: '3D', last_7d: '7D', last_14d: '14D', last_30d: '30D' };
+    document.querySelectorAll('.date-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === (map[_dateFilter] || '7D'));
+    });
+}
+
+// ==================== OPTIMIZATION PAGE ====================
+async function loadOptimizationPage() {
     if (!_currentAccount) return;
 
     try {
-        _campaigns = await api(`/campaigns?account_id=${_currentAccount}`);
-        renderCampaigns(_campaigns);
-    } catch (e) {
-        document.getElementById('campaigns-list').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>Erro ao carregar</h3><p>${esc(e.message)}</p></div>`;
-    }
-}
-
-function renderCampaigns(campaigns) {
-    const container = document.getElementById('campaigns-list');
-
-    if (!campaigns || campaigns.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><h3>Nenhuma campanha encontrada</h3></div>';
-        return;
-    }
-
-    container.innerHTML = campaigns.map(c => {
-        const budget = c.daily_budget ? `R$${(parseInt(c.daily_budget) / 100).toFixed(2)}/dia` : (c.lifetime_budget ? `R$${(parseInt(c.lifetime_budget) / 100).toFixed(2)} total` : '--');
-        const config = c.optimization_config;
-
-        return `
-        <div class="campaign-card">
-            <div class="campaign-header">
-                <div class="campaign-name">${esc(c.name)}</div>
-                <span class="campaign-status ${c.status.toLowerCase()}">
-                    <span class="dot"></span> ${c.status}
-                </span>
-            </div>
-            <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary);margin-bottom:12px">
-                <span>ID: ${c.id}</span>
-                <span>Objetivo: ${c.objective || '--'}</span>
-                <span>Budget: ${budget}</span>
-            </div>
-            <div class="campaign-footer">
-                <div class="campaign-config-badges">
-                    ${config ? `
-                        <span class="badge badge-success">Otimizacao ativa</span>
-                        <span class="badge badge-muted">CPA max: R$${config.max_cpa}</span>
-                    ` : '<span class="badge badge-muted">Sem otimizacao</span>'}
-                </div>
-                <div class="campaign-actions">
-                    ${c.status === 'ACTIVE' ?
-                        `<button class="btn btn-warning btn-sm" onclick="quickPause('${c.id}')">Pausar</button>` :
-                        `<button class="btn btn-success btn-sm" onclick="quickActivate('${c.id}')">Ativar</button>`
-                    }
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-function filterCampaigns() {
-    const q = document.getElementById('campaign-search').value.toLowerCase();
-    const filtered = _campaigns.filter(c => c.name.toLowerCase().includes(q));
-    renderCampaigns(filtered);
-}
-
-async function refreshCampaigns() {
-    await loadCampaigns();
-    showToast('Campanhas atualizadas', 'success');
-}
-
-// ==================== OPTIMIZATION CONFIG ====================
-async function loadOptConfigs() {
-    if (!_currentAccount) return;
-
-    try {
+        // Only load ACTIVE campaigns (like OneClick) — not archived/deleted
+        _campaigns = await api(`/campaigns?account_id=${_currentAccount}&status=ACTIVE`);
         _configs = await api(`/optimization/configs?account_id=${_currentAccount}`);
-
-        // Fetch today's optimization counts per campaign
-        try {
-            const logs = await api(`/optimization/log?account_id=${_currentAccount}&limit=1000`);
-            const today = new Date().toISOString().slice(0, 10);
-            _todayOptCounts = {};
-            for (const log of logs) {
-                if (log.timestamp && log.timestamp.slice(0, 10) === today && log.success) {
-                    _todayOptCounts[log.campaign_id] = (_todayOptCounts[log.campaign_id] || 0) + 1;
-                }
-            }
-        } catch (e) { /* ignore */ }
-
-        renderOptCampaigns();
     } catch (e) {
-        console.error('Error loading configs:', e);
+        console.error('Opt page error:', e);
+        _campaigns = [];
+        _configs = [];
     }
+
+    renderOptCampaigns();
 }
 
-async function renderOptCampaigns() {
-    // Get all campaigns for this account
-    let campaigns = _campaigns;
-    if (!campaigns.length) {
-        try {
-            campaigns = await api(`/campaigns?account_id=${_currentAccount}`);
-        } catch (e) { return; }
-    }
-
+function renderOptCampaigns() {
     const enabledContainer = document.getElementById('opt-campaigns-enabled');
     const disabledContainer = document.getElementById('opt-campaigns-disabled');
 
-    const enabledConfigs = _configs.filter(c => c.enabled);
-    const enabledIds = new Set(enabledConfigs.map(c => c.campaign_id));
+    const searchTerm = (document.getElementById('opt-search')?.value || '').toLowerCase();
 
-    // Enabled campaigns — OneClick-style inline cards
-    if (enabledConfigs.length === 0) {
-        enabledContainer.innerHTML = '<div class="empty-state"><div class="icon">🤖</div><h3>Nenhuma campanha ativada</h3><p>Ative a otimizacao em uma campanha na aba "Desativadas".</p></div>';
-    } else {
-        enabledContainer.innerHTML = enabledConfigs.map(config => {
-            const campaign = campaigns.find(c => c.id === config.campaign_id);
-            const name = campaign ? campaign.name : config.campaign_name || config.campaign_id;
-            const status = campaign ? campaign.status : '';
+    const enriched = _campaigns.map(c => {
+        const config = _configs.find(cfg => cfg.campaign_id === c.id);
+        return { ...c, config };
+    });
 
-            // Count today's optimizations for this campaign
-            const todayActions = _todayOptCounts[config.campaign_id] || 0;
+    // Filter
+    let filtered = enriched;
+    if (searchTerm) {
+        filtered = filtered.filter(c => c.name.toLowerCase().includes(searchTerm));
+    }
 
-            return `
-            <div class="opt-config-card">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                    <div style="display:flex;align-items:center;gap:10px">
-                        <span class="opt-status-live"><span class="opt-live-dot"></span> Otimizando</span>
-                        <span class="badge ${todayActions > 0 ? 'badge-success' : 'badge-muted'}">${todayActions} otimizacao${todayActions !== 1 ? 'es' : ''} hoje</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:8px">
-                        <a href="https://www.facebook.com/adsmanager/manage/campaigns?act=${(config.account_id||'').replace('act_','')}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:4px">↗ Meta</a>
+    const statusFilter = document.getElementById('opt-status-filter')?.value;
+    if (statusFilter === 'enabled') {
+        filtered = filtered.filter(c => c.config && c.config.enabled);
+    } else if (statusFilter === 'disabled') {
+        filtered = filtered.filter(c => !c.config || !c.config.enabled);
+    }
+
+    const enabled = filtered.filter(c => c.config && c.config.enabled);
+    const disabled = filtered.filter(c => !c.config || !c.config.enabled);
+
+    enabledContainer.innerHTML = enabled.length > 0
+        ? enabled.map(c => renderOptCard(c, true)).join('')
+        : '<div class="empty-state"><h3>Nenhuma campanha otimizando</h3><p>Ative a otimizacao na aba "Campanhas Desativadas".</p></div>';
+
+    disabledContainer.innerHTML = disabled.length > 0
+        ? disabled.map(c => renderOptCard(c, false)).join('')
+        : '<div class="empty-state"><h3>Todas as campanhas estao sendo otimizadas</h3></div>';
+}
+
+function renderOptCard(campaign, isEnabled) {
+    const c = campaign;
+    const cfg = c.config || {};
+    const pauseBehavior = cfg.pause_behavior || _settings.default_pause_behavior || 'flexible';
+    const scaleMethod = cfg.scale_method || _settings.default_scale_method || 'conservative';
+    const maxCpa = cfg.max_cpa || 0;
+    const maxBudget = cfg.max_daily_budget_cbo || 0;
+    const hasBudgetLimit = maxBudget > 0;
+    const campaignId = c.id;
+
+    return `
+    <div class="opt-card" id="opt-card-${campaignId}">
+        <div class="opt-card-header">
+            <div class="opt-card-type">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>
+                Otimizacao Manual
+            </div>
+            <div class="opt-card-actions">
+                <a class="opt-card-meta-link" href="https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${(cfg.account_id || _currentAccount || '').replace('act_','')}&campaign_ids=${campaignId}" target="_blank" title="Abrir no Meta Ads Manager">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    Meta
+                </a>
+                <button class="opt-card-menu" title="Opcoes">...</button>
+            </div>
+        </div>
+
+        <div class="opt-card-body">
+            <div class="opt-card-name-label">Nome da campanha</div>
+            <div class="opt-card-name">${esc(c.name)}</div>
+
+            <div class="opt-card-controls">
+                <div class="opt-control-group">
+                    <label>Comportamento para pausar:</label>
+                    <div class="toggle-group">
+                        <button class="toggle-option ${pauseBehavior === 'rigorous' ? 'active' : ''}" onclick="setOptParam('${campaignId}', 'pause_behavior', 'rigorous', this)">Pausa Rigorosa</button>
+                        <button class="toggle-option ${pauseBehavior === 'flexible' ? 'active' : ''}" onclick="setOptParam('${campaignId}', 'pause_behavior', 'flexible', this)">Pausa Flexivel</button>
                     </div>
                 </div>
-                <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:16px">${esc(name)}</div>
-
-                <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-                    <!-- Pause behavior toggle -->
-                    <div>
-                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Comportamento para pausar:</div>
-                        <div style="display:flex;gap:4px;background:var(--bg-secondary);border-radius:var(--radius-sm);padding:3px">
-                            <button class="opt-toggle-btn ${config.pause_behavior === 'rigorous' ? 'active danger' : ''}" onclick="updateOptField('${config.campaign_id}','pause_behavior','rigorous')">Pausa Rigorosa</button>
-                            <button class="opt-toggle-btn ${config.pause_behavior === 'flexible' ? 'active warning' : ''}" onclick="updateOptField('${config.campaign_id}','pause_behavior','flexible')">Pausa Flexivel</button>
-                        </div>
+                <div class="opt-control-group">
+                    <label>Metodo de escala:</label>
+                    <div class="toggle-group">
+                        <button class="toggle-option ${scaleMethod === 'accelerated' ? 'active' : ''}" onclick="setOptParam('${campaignId}', 'scale_method', 'accelerated', this)">Escala Acelerada</button>
+                        <button class="toggle-option ${scaleMethod === 'conservative' ? 'active' : ''}" onclick="setOptParam('${campaignId}', 'scale_method', 'conservative', this)">Escala Conservadora</button>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Scale method toggle -->
-                    <div>
-                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Metodo de escala:</div>
-                        <div style="display:flex;gap:4px;background:var(--bg-secondary);border-radius:var(--radius-sm);padding:3px">
-                            <button class="opt-toggle-btn ${config.scale_method === 'accelerated' ? 'active success' : ''}" onclick="updateOptField('${config.campaign_id}','scale_method','accelerated')">Escala Acelerada</button>
-                            <button class="opt-toggle-btn ${config.scale_method === 'conservative' ? 'active info' : ''}" onclick="updateOptField('${config.campaign_id}','scale_method','conservative')">Escala Conservadora</button>
-                        </div>
+            <div class="opt-card-params">
+                <div class="opt-param-group">
+                    <div class="opt-param-label">
+                        Custo por Conversao para PAUSAR (Conjunto de Anuncios)
+                        <span class="info-icon" title="Custo maximo por conversao. Conjuntos acima deste valor serao pausados automaticamente.">i</span>
                     </div>
-
-                    <!-- CPA max -->
-                    <div>
-                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Custo por Conversao para PAUSAR (Conjunto de Anuncios)</div>
-                        <div style="display:flex;align-items:center;gap:6px">
-                            <span style="font-size:12px;color:var(--text-secondary)">BRL</span>
-                            <input type="number" step="0.01" class="opt-inline-input" id="opt-cpa-${config.campaign_id}" value="${config.max_cpa.toFixed(2)}" onchange="updateOptCpa('${config.campaign_id}', this.value)">
-                        </div>
+                    <div class="opt-param-input">
+                        <span class="opt-param-prefix">BRL</span>
+                        <input type="text" value="${formatMoneyInput(maxCpa)}" onchange="setOptCpa('${campaignId}', this.value)" placeholder="0,00">
                     </div>
+                </div>
 
-                    <!-- Budget max -->
-                    <div>
-                        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">Orcamento Diario Maximo da Campanha (CBO)</div>
-                        <div style="display:flex;align-items:center;gap:6px">
-                            <span style="font-size:12px;color:var(--text-secondary)">BRL</span>
-                            <input type="number" step="0.01" class="opt-inline-input" id="opt-budget-${config.campaign_id}" value="${config.max_daily_budget_cbo.toFixed(2)}" onchange="updateOptBudget('${config.campaign_id}', this.value)">
-                        </div>
-                        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-secondary);cursor:pointer">
-                            <input type="checkbox" ${config.unlimited_scale ? 'checked' : ''} onchange="updateOptField('${config.campaign_id}','unlimited_scale',this.checked)"> Escala Ilimitada
+                <div class="opt-param-group">
+                    <div class="opt-budget-toggle">
+                        <input type="checkbox" id="budget-check-${campaignId}" ${hasBudgetLimit ? 'checked' : ''} onchange="toggleBudgetLimit('${campaignId}', this.checked)">
+                        <label for="budget-check-${campaignId}">
+                            Definir Orcamento Diario Maximo
+                            <span class="info-icon" title="Limita o orcamento diario maximo da campanha (CBO). O otimizador nao escalara acima deste valor.">i</span>
                         </label>
                     </div>
-
-                    <!-- STATUS BUTTON -->
-                    <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
-                        <button class="btn-optimize-green running" id="opt-btn-${config.campaign_id}" onclick="runOptimize('${config.campaign_id}')" data-tooltip="Executar otimizacao agora">
-                            <span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${todayActions}</span>
-                        </button>
-                        <button class="btn btn-outline btn-sm" onclick="toggleOptConfig('${config.campaign_id}', false)" style="color:var(--danger);border-color:var(--danger)">Pausar</button>
+                    <div class="opt-param-input" id="budget-input-${campaignId}" style="display:${hasBudgetLimit ? 'flex' : 'none'};margin-top:8px">
+                        <span class="opt-param-prefix">BRL</span>
+                        <input type="text" value="${formatMoneyInput(maxBudget)}" onchange="setOptBudget('${campaignId}', this.value)" placeholder="0,00">
                     </div>
                 </div>
-            </div>`;
-        }).join('');
-    }
+            </div>
+        </div>
 
-    // Disabled / unconfigured campaigns
-    const disabledCampaigns = campaigns.filter(c => !enabledIds.has(c.id));
-    const disabledConfigs = _configs.filter(c => !c.enabled);
-
-    if (disabledCampaigns.length === 0 && disabledConfigs.length === 0) {
-        disabledContainer.innerHTML = '<div class="empty-state"><div class="icon">✅</div><h3>Todas as campanhas estao ativadas</h3></div>';
-    } else {
-        disabledContainer.innerHTML = disabledCampaigns.map(c => {
-            const config = disabledConfigs.find(dc => dc.campaign_id === c.id);
-            return `
-            <div class="opt-config-card" style="opacity:0.7">
-                <div class="opt-config-header">
-                    <div style="flex:1">
-                        <div class="opt-config-name">${esc(c.name)}</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${c.status} | ${c.objective || '--'}</div>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                        ${config ? `<button class="btn-optimize-green" onclick="toggleOptConfig('${c.id}', true)" style="padding:10px 20px;font-size:13px"><span>&#9654;</span> Otimizar</button>`
-                        : `<button class="btn-optimize-green" onclick="openOptConfigModal('${c.id}', '${esc(c.name)}', '${_currentAccount}')" style="padding:10px 20px;font-size:13px"><span>&#9654;</span> Otimizar</button>`}
-                    </div>
-                </div>
-            </div>`;
-        }).join('');
-    }
+        <div class="opt-card-footer">
+            <div class="opt-card-ai">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Parametrizacao inteligente com IA
+                <span class="badge-soon">Em breve</span>
+            </div>
+            <div class="opt-card-action-btns">
+                ${isEnabled
+                    ? `<span class="opt-status-badge active" style="margin-right:8px">
+                        Otimizando 24/7
+                    </span>
+                    <button class="btn-optimize" onclick="runOptimize('${campaignId}')" title="Forcar uma otimizacao manual agora">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
+                        Otimizar Agora
+                    </button>
+                    <button class="btn-pause-campaign" onclick="disableOptimization('${campaignId}')">Parar</button>`
+                    : `<button class="btn-optimize" onclick="enableOptimization('${campaignId}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+                        Ativar Otimizacao
+                    </button>`
+                }
+            </div>
+        </div>
+    </div>`;
 }
 
-// Quick inline config updates (no modal needed)
-async function updateOptField(campaignId, field, value) {
-    const config = _configs.find(c => c.campaign_id === campaignId);
-    if (!config) return;
-    try {
-        await api(`/optimization/configs/${campaignId}`, 'PUT', { ...config, [field]: value });
-        showToast('Configuracao atualizada', 'success');
-        _configs = await api(`/optimization/configs?account_id=${_currentAccount}`);
-        renderOptCampaigns();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
-    }
-}
-
-async function updateOptCpa(campaignId, value) {
-    const cpa = parseFloat(value);
-    if (!cpa || cpa <= 0) { showToast('CPA invalido', 'error'); return; }
-    await updateOptField(campaignId, 'max_cpa', cpa);
-}
-
-async function updateOptBudget(campaignId, value) {
-    const budget = parseFloat(value) || 0;
-    await updateOptField(campaignId, 'max_daily_budget_cbo', budget);
+function filterOptCampaigns() {
+    renderOptCampaigns();
 }
 
 function switchOptTab(tab) {
-    const enabled = document.getElementById('opt-campaigns-enabled');
-    const disabled = document.getElementById('opt-campaigns-disabled');
-    const btns = document.querySelectorAll('#tab-optimization .tabs .tab-btn');
+    _optTab = tab;
+    document.querySelectorAll('.opt-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.opt-tab:${tab === 'enabled' ? 'first-child' : 'last-child'}`).classList.add('active');
+    document.getElementById('opt-campaigns-enabled').style.display = tab === 'enabled' ? 'flex' : 'none';
+    document.getElementById('opt-campaigns-disabled').style.display = tab === 'disabled' ? 'flex' : 'none';
+}
 
-    if (tab === 'enabled') {
-        enabled.style.display = 'flex';
-        disabled.style.display = 'none';
-        btns[0].classList.add('active');
-        btns[1].classList.remove('active');
+// ==================== OPTIMIZATION ACTIONS ====================
+function setOptParam(campaignId, param, value, btn) {
+    // Update toggle UI
+    const group = btn.parentElement;
+    group.querySelectorAll('.toggle-option').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Save
+    saveOptConfig(campaignId, { [param]: value });
+}
+
+function setOptCpa(campaignId, value) {
+    const numVal = parseMoneyInput(value);
+    saveOptConfig(campaignId, { max_cpa: numVal });
+}
+
+function setOptBudget(campaignId, value) {
+    const numVal = parseMoneyInput(value);
+    saveOptConfig(campaignId, { max_daily_budget_cbo: numVal });
+}
+
+function toggleBudgetLimit(campaignId, checked) {
+    const inputDiv = document.getElementById(`budget-input-${campaignId}`);
+    inputDiv.style.display = checked ? 'flex' : 'none';
+    if (!checked) {
+        saveOptConfig(campaignId, { max_daily_budget_cbo: 0, unlimited_scale: true });
     } else {
-        enabled.style.display = 'none';
-        disabled.style.display = 'flex';
-        btns[0].classList.remove('active');
-        btns[1].classList.add('active');
+        saveOptConfig(campaignId, { unlimited_scale: false });
     }
 }
 
-// ==================== OPT CONFIG MODAL ====================
-function openOptConfigModal(campaignId, campaignName, accountId) {
-    document.getElementById('modal-opt-campaign-id').value = campaignId;
-    document.getElementById('modal-opt-account-id').value = accountId;
-    document.getElementById('modal-opt-campaign-name').textContent = campaignName;
+async function saveOptConfig(campaignId, updates) {
+    const campaign = _campaigns.find(c => c.id === campaignId);
+    const existing = _configs.find(c => c.campaign_id === campaignId) || {};
 
-    const config = _configs.find(c => c.campaign_id === campaignId);
+    const config = {
+        campaign_id: campaignId,
+        campaign_name: campaign?.name || existing.campaign_name || '',
+        account_id: _currentAccount,
+        pause_behavior: existing.pause_behavior || _settings.default_pause_behavior || 'flexible',
+        scale_method: existing.scale_method || _settings.default_scale_method || 'conservative',
+        max_cpa: existing.max_cpa || 0,
+        max_daily_budget_cbo: existing.max_daily_budget_cbo || 0,
+        unlimited_scale: existing.unlimited_scale || false,
+        enabled: existing.enabled !== undefined ? existing.enabled : false,
+        ...updates
+    };
 
-    if (config) {
-        document.getElementById('modal-opt-pause').value = config.pause_behavior || 'flexible';
-        document.getElementById('modal-opt-scale').value = config.scale_method || 'conservative';
-        document.getElementById('modal-opt-max-cpa').value = config.max_cpa || '';
-        document.getElementById('modal-opt-max-budget').value = config.max_daily_budget_cbo || '';
-        document.getElementById('modal-opt-unlimited').checked = config.unlimited_scale || false;
-        document.getElementById('btn-remove-opt').style.display = 'inline-flex';
-    } else {
-        document.getElementById('modal-opt-pause').value = _settings.default_pause_behavior || 'flexible';
-        document.getElementById('modal-opt-scale').value = _settings.default_scale_method || 'conservative';
-        document.getElementById('modal-opt-max-cpa').value = '';
-        document.getElementById('modal-opt-max-budget').value = '';
-        document.getElementById('modal-opt-unlimited').checked = false;
-        document.getElementById('btn-remove-opt').style.display = 'none';
+    try {
+        await api(`/optimization/configs/${campaignId}`, 'PUT', config);
+        // Update local cache
+        const idx = _configs.findIndex(c => c.campaign_id === campaignId);
+        if (idx >= 0) {
+            Object.assign(_configs[idx], config);
+        } else {
+            _configs.push(config);
+        }
+        showToast('Configuracao salva', 'success');
+    } catch (e) {
+        showToast(`Erro: ${e.message}`, 'error');
     }
-
-    document.getElementById('modal-opt-config').classList.add('show');
 }
 
-async function saveOptConfig() {
-    const campaignId = document.getElementById('modal-opt-campaign-id').value;
-    const accountId = document.getElementById('modal-opt-account-id').value;
-    const campaignName = document.getElementById('modal-opt-campaign-name').textContent;
-    const maxCpa = parseFloat(document.getElementById('modal-opt-max-cpa').value);
+async function enableOptimization(campaignId) {
+    const campaign = _campaigns.find(c => c.id === campaignId);
+    const existing = _configs.find(c => c.campaign_id === campaignId) || {};
 
-    if (!maxCpa || maxCpa <= 0) {
-        showToast('Informe o CPA maximo para pausar', 'error');
+    // Check if CPA is set
+    const cpa = existing.max_cpa || 0;
+    if (cpa <= 0) {
+        showToast('Configure o Custo por Conversao antes de ativar', 'error');
         return;
     }
 
-    try {
-        await api(`/optimization/configs/${campaignId}`, 'PUT', {
-            campaign_name: campaignName,
-            account_id: accountId,
-            pause_behavior: document.getElementById('modal-opt-pause').value,
-            scale_method: document.getElementById('modal-opt-scale').value,
-            max_cpa: maxCpa,
-            max_daily_budget_cbo: parseFloat(document.getElementById('modal-opt-max-budget').value) || 0,
-            unlimited_scale: document.getElementById('modal-opt-unlimited').checked,
-            enabled: true
-        });
+    // 1. Enable optimization for this campaign
+    await saveOptConfig(campaignId, { enabled: true });
 
-        closeModal('modal-opt-config');
-        showToast('Configuracao salva!', 'success');
-        await loadOptConfigs();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
+    // 2. Ensure auto-optimize is ON globally (so scheduler keeps running 24/7)
+    if (!_settings.auto_optimize) {
+        await api('/settings', 'PUT', { auto_optimize: true });
+        _settings.auto_optimize = true;
     }
-}
 
-async function removeOptConfig() {
-    const campaignId = document.getElementById('modal-opt-campaign-id').value;
-    if (!confirm('Remover configuracao de otimizacao?')) return;
+    showToast(`Otimizacao ATIVA 24/7: ${campaign?.name || campaignId}. Rodando primeira analise agora...`, 'success');
+    renderOptCampaigns();
 
+    // 3. Run first optimization immediately (don't wait for scheduler)
     try {
-        await api(`/optimization/configs/${campaignId}`, 'DELETE');
-        closeModal('modal-opt-config');
-        showToast('Configuracao removida', 'success');
-        await loadOptConfigs();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
-    }
-}
-
-async function toggleOptConfig(campaignId, enabled) {
-    const config = _configs.find(c => c.campaign_id === campaignId);
-    if (!config) return;
-
-    try {
-        await api(`/optimization/configs/${campaignId}`, 'PUT', { ...config, enabled });
-        showToast(enabled ? 'Otimizacao ativada' : 'Otimizacao desativada', 'success');
-        await loadOptConfigs();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
-    }
-}
-
-// ==================== OPTIMIZATION EXECUTION ====================
-let _optimizingCampaigns = {}; // { campaignId: { actions: 0, status: 'running' } }
-
-async function runOptimize(campaignId) {
-    try {
-        // Mark as executing immediate scan
-        const btn = document.getElementById(`opt-btn-${campaignId}`);
-        if (btn) {
-            btn.innerHTML = '<span class="opt-btn-arrow-up">&#8593;</span> Buscando oportunidades...';
-        }
-        _optimizingCampaigns[campaignId] = { actions: 0, status: 'running' };
-        showOptProgress();
         await api(`/optimization/run/${campaignId}`, 'POST');
     } catch (e) {
+        // Non-blocking — scheduler will pick it up anyway
+        console.log('First run queued:', e.message);
+    }
+}
+
+async function disableOptimization(campaignId) {
+    const campaign = _campaigns.find(c => c.id === campaignId);
+    await saveOptConfig(campaignId, { enabled: false });
+    showToast(`Otimizacao pausada: ${campaign?.name || campaignId}`, 'info');
+    renderOptCampaigns();
+}
+
+async function runOptimize(campaignId) {
+    const btn = document.querySelector(`#opt-card-${campaignId} .btn-optimize`);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Otimizando...';
+    }
+
+    try {
+        await api(`/optimization/run/${campaignId}`, 'POST');
+        showToast('Otimizacao iniciada', 'success');
+    } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
-        // Restore to the persistent "Otimizando..." state
-        const todayActions = _todayOptCounts[campaignId] || 0;
-        const btn = document.getElementById(`opt-btn-${campaignId}`);
         if (btn) {
-            btn.innerHTML = `<span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${todayActions}</span>`;
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg> Otimizar';
         }
-        delete _optimizingCampaigns[campaignId];
-        hideOptProgress();
     }
 }
 
 async function runOptimizeAll() {
     try {
-        // Mark all enabled campaigns as optimizing
-        _configs.filter(c => c.enabled).forEach(c => {
-            _optimizingCampaigns[c.campaign_id] = { actions: 0, status: 'running' };
-            updateOptButton(c.campaign_id);
-        });
-        showOptProgress();
         await api('/optimization/run-all', 'POST');
+        showToast('Otimizacao de todas as campanhas iniciada', 'success');
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
-        Object.keys(_optimizingCampaigns).forEach(id => {
-            _optimizingCampaigns[id].status = 'error';
-            updateOptButton(id);
-        });
-        hideOptProgress();
     }
 }
 
-function updateOptButton(campaignId) {
-    const btn = document.getElementById(`opt-btn-${campaignId}`);
-    if (!btn) return;
-
-    const state = _optimizingCampaigns[campaignId];
-    if (!state) {
-        btn.innerHTML = '<span class="opt-btn-icon">&#9654;</span> Otimizar';
-        btn.className = 'btn-optimize-green';
-        btn.disabled = false;
-        return;
-    }
-
-    switch (state.status) {
-        case 'running':
-            btn.innerHTML = `<span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${state.actions}</span>`;
-            btn.className = 'btn-optimize-green running';
-            btn.disabled = true;
-            break;
-        case 'done':
-            btn.innerHTML = `<span style="font-size:16px">&#10003;</span> ${state.actions} otimizacao${state.actions !== 1 ? 'es' : ''}`;
-            btn.className = 'btn-optimize-green done';
-            btn.disabled = false;
-            // Reset after 30s
-            setTimeout(() => {
-                delete _optimizingCampaigns[campaignId];
-                updateOptButton(campaignId);
-            }, 30000);
-            break;
-        case 'error':
-            btn.innerHTML = '<span style="font-size:14px">&#10007;</span> Erro - Tentar novamente';
-            btn.className = 'btn-optimize-green error';
-            btn.disabled = false;
-            setTimeout(() => {
-                delete _optimizingCampaigns[campaignId];
-                updateOptButton(campaignId);
-            }, 10000);
-            break;
-    }
-}
-
-function showOptProgress() {
-    const el = document.getElementById('optimization-progress');
-    el.style.display = 'block';
-    document.getElementById('opt-progress-text').textContent = 'Otimizando...';
-    document.getElementById('opt-progress-log').innerHTML = '';
-    document.getElementById('btn-optimize-all').disabled = true;
-    document.getElementById('btn-optimize-all').classList.add('running');
-}
-
-function hideOptProgress() {
-    document.getElementById('btn-optimize-all').disabled = false;
-    document.getElementById('btn-optimize-all').classList.remove('running');
-
-    // Auto-hide progress after 3 seconds
-    setTimeout(() => {
-        const el = document.getElementById('optimization-progress');
-        if (el) el.style.display = 'none';
-    }, 3000);
-}
-
-// ==================== LOG ====================
-async function loadOptLog() {
-    try {
-        const action = document.getElementById('log-filter-action')?.value || '';
-        const params = new URLSearchParams();
-        if (_currentAccount) params.set('account_id', _currentAccount);
-        if (action) params.set('action', action);
-        params.set('limit', '100');
-
-        const logs = await api(`/optimization/log?${params}`);
-        renderOptLog(logs);
-    } catch (e) {
-        document.getElementById('log-list').innerHTML = `<div class="empty-state"><p>Erro: ${esc(e.message)}</p></div>`;
-    }
-}
-
-function renderOptLog(logs) {
-    const container = document.getElementById('log-list');
-
-    if (!logs || logs.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">📜</div><h3>Nenhuma otimizacao registrada</h3><p>As acoes aparecerao aqui quando voce executar otimizacoes.</p></div>';
-        return;
-    }
-
-    container.innerHTML = logs.map(l => {
-        const iconClass = l.action.includes('pause') || l.action.includes('reduction') ? 'pause' :
-            l.action.includes('scale') || l.action.includes('surf') ? 'scale' :
-            l.action.includes('reactivate') ? 'reactivate' :
-            l.success === false ? 'error' : 'info';
-
-        const icon = iconClass === 'pause' ? '⏸' :
-            iconClass === 'scale' ? '📈' :
-            iconClass === 'reactivate' ? '▶️' :
-            iconClass === 'error' ? '❌' : 'ℹ️';
-
-        const time = new Date(l.timestamp);
-        const timeStr = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`;
-        const dateStr = time.toLocaleDateString('pt-BR');
-
-        return `
-        <div class="log-item">
-            <div class="log-icon ${iconClass}">${icon}</div>
-            <div class="log-content">
-                <div class="log-title">${esc(l.object_name || l.object_id)}</div>
-                <div class="log-detail">${esc(l.reason)}</div>
-                ${l.suffix ? `<div style="font-size:11px;color:var(--accent);margin-top:2px">Sufixo: ${esc(l.suffix)}</div>` : ''}
-                ${!l.success ? `<div style="font-size:11px;color:var(--danger);margin-top:2px">Erro: ${esc(l.error)}</div>` : ''}
+// ==================== ACCOUNTS PAGE ====================
+async function loadAccountsPage() {
+    const container = document.getElementById('accounts-list');
+    container.innerHTML = _accounts.map(acc => `
+        <div class="account-card">
+            <div class="account-card-info">
+                <h4>${esc(acc.name || acc.id)}</h4>
+                <p>${acc.id} - ${acc.currency || 'BRL'} - ${acc.timezone || '--'}</p>
             </div>
-            <div class="log-time">${dateStr}<br>${timeStr}</div>
-        </div>`;
-    }).join('');
+            <span class="opt-status-badge active">Ativa</span>
+        </div>
+    `).join('') || '<div class="empty-state"><h3>Nenhuma conta vinculada</h3></div>';
+}
+
+async function discoverAccounts() {
+    try {
+        const data = await api('/accounts/discover', 'POST');
+        showToast(`${data.accounts?.length || 0} contas encontradas`, 'success');
+        _accounts = await api('/accounts');
+        populateAccountSelect();
+        loadAccountsPage();
+    } catch (e) {
+        showToast(`Erro: ${e.message}`, 'error');
+    }
+}
+
+// ==================== LOG PAGE ====================
+async function loadOptLog() {
+    if (!_currentAccount) return;
+
+    const actionFilter = document.getElementById('log-filter-action')?.value || '';
+    try {
+        const logs = await api(`/optimization/log?account_id=${_currentAccount}&action=${actionFilter}&limit=200`);
+        const container = document.getElementById('log-list');
+
+        if (!logs || logs.length === 0) {
+            container.innerHTML = '<div class="empty-state"><h3>Nenhuma otimizacao registrada</h3><p>O historico aparecera aqui apos as otimizacoes serem executadas.</p></div>';
+            return;
+        }
+
+        container.innerHTML = logs.map(log => {
+            const actionType = log.action.includes('pause') ? 'pause'
+                : log.action.includes('scale') ? 'scale'
+                : log.action.includes('reactivate') ? 'reactivate'
+                : 'other';
+
+            const actionLabel = log.action.includes('pause') ? 'Pausa'
+                : log.action.includes('scale') ? 'Escala'
+                : log.action.includes('reactivate') ? 'Reativacao'
+                : log.action;
+
+            return `
+            <div class="log-entry">
+                <div class="log-time">${formatDateTime(log.timestamp)}</div>
+                <div class="log-action ${actionType}">${actionLabel}</div>
+                <div>
+                    <div class="log-detail">${esc(log.object_name || '--')}</div>
+                    <div class="log-reason">${esc(log.reason || '--')}</div>
+                </div>
+                <div class="log-campaign" style="font-size:11px;color:var(--text-muted)">${esc(log.campaign_name || '')}</div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Log error:', e);
+    }
+}
+
+// ==================== SUFFIXES PAGE ====================
+function loadSuffixesPage() {
+    const suffixes = [
+        { code: '| Pausado nunca converteu', desc: 'Conjunto/anuncio que nunca gerou conversao' },
+        { code: '| Pausado sem conversoes 7 dias', desc: 'Sem conversoes nos ultimos 7 dias' },
+        { code: '| Pausado sem conversoes 14 dias', desc: 'Sem conversoes nos ultimos 14 dias' },
+        { code: '| Pausado CPA maximo', desc: 'CPA acima do limite configurado' },
+        { code: '| Pausado perda de performance 7d', desc: 'CPA 7d pior que 14d' },
+        { code: '| Pausado CPA extremo ultimos dias', desc: 'CPA acima de 3x o maximo' },
+        { code: '| Pausado temporariamente CPA hoje', desc: 'CPA alto hoje - reativa a meia-noite' },
+        { code: '| Pausado temporariamente sem conversoes hoje', desc: 'Sem conversoes hoje - reativa a meia-noite' },
+        { code: '| Reativado conversao tardia', desc: 'Conversao detectada apos pausa' },
+        { code: '| Escala horizontal', desc: 'Conjunto duplicado por performance excelente' },
+        { code: '| Escala vertical', desc: 'Budget aumentado por boa performance' },
+        { code: '| Escala vertical agressiva', desc: 'Aumento de budget acima de 20%' },
+        { code: '| Surfando conversoes hoje', desc: 'Budget aumentado por performance excepcional hoje' },
+        { code: '| Reducao por alta frequencia', desc: 'Frequencia acima do limite' },
+        { code: '| Correcao Orcamento Maximo', desc: 'Budget corrigido para nao ultrapassar o maximo CBO' },
+    ];
+
+    const container = document.getElementById('suffixes-list');
+    container.innerHTML = suffixes.map(s => `
+        <div class="suffix-item">
+            <code>${esc(s.code)}</code>
+            <span>${esc(s.desc)}</span>
+        </div>
+    `).join('');
 }
 
 // ==================== SETTINGS ====================
 function loadSettingsUI() {
-    const s = _settings;
-    const tokenEl = document.getElementById('settings-token-status');
-    if (s.has_token) {
-        tokenEl.textContent = `Configurado (${s.token_preview || '***'})`;
-        tokenEl.style.color = 'var(--success)';
-    } else {
-        tokenEl.textContent = 'Nao configurado';
-        tokenEl.style.color = 'var(--danger)';
+    const autoOpt = document.getElementById('settings-auto-optimize');
+    const interval = document.getElementById('settings-interval');
+    const pauseSel = document.getElementById('settings-default-pause');
+    const scaleSel = document.getElementById('settings-default-scale');
+    const tokenStatus = document.getElementById('settings-token-status');
+
+    if (autoOpt) autoOpt.checked = _settings.auto_optimize !== false;
+    if (interval) interval.value = _settings.optimization_interval_minutes || 15;
+    if (pauseSel) pauseSel.value = _settings.default_pause_behavior || 'flexible';
+    if (scaleSel) scaleSel.value = _settings.default_scale_method || 'conservative';
+    if (tokenStatus) {
+        tokenStatus.textContent = _settings.has_token
+            ? `Configurado (${_settings.token_preview || '***'})`
+            : 'Nao configurado';
     }
 
-    document.getElementById('settings-auto-optimize').checked = s.auto_optimize || false;
-    document.getElementById('settings-interval').value = s.optimization_interval_minutes || 30;
-    document.getElementById('settings-default-pause').value = s.default_pause_behavior || 'flexible';
-    document.getElementById('settings-default-scale').value = s.default_scale_method || 'conservative';
-
-    // Render accounts
+    // Accounts in settings
     const accContainer = document.getElementById('settings-accounts');
-    if (_accounts.length === 0) {
-        accContainer.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Nenhuma conta vinculada</p>';
-    } else {
+    if (accContainer) {
         accContainer.innerHTML = _accounts.map(a => `
-        <div class="settings-row">
-            <div>
-                <div class="label">${esc(a.name || a.id)}</div>
-                <div class="hint">${a.id} | ${a.currency || 'BRL'}</div>
+            <div class="settings-row">
+                <div>
+                    <div class="settings-label">${esc(a.name || a.id)}</div>
+                    <div class="settings-hint">${a.id}</div>
+                </div>
+                <span class="opt-status-badge active">Ativa</span>
             </div>
-            <span class="badge ${a.status === 1 ? 'badge-success' : 'badge-warning'}">${a.status === 1 ? 'Ativa' : 'Status ' + a.status}</span>
-        </div>
-        `).join('');
+        `).join('') || '<p style="color:var(--text-muted);font-size:13px">Nenhuma conta vinculada.</p>';
     }
 }
 
 async function saveSettings() {
+    const updates = {
+        auto_optimize: document.getElementById('settings-auto-optimize')?.checked ?? true,
+        optimization_interval_minutes: parseInt(document.getElementById('settings-interval')?.value) || 15,
+        default_pause_behavior: document.getElementById('settings-default-pause')?.value || 'flexible',
+        default_scale_method: document.getElementById('settings-default-scale')?.value || 'conservative'
+    };
+
     try {
-        await api('/settings', 'PUT', {
-            auto_optimize: document.getElementById('settings-auto-optimize').checked,
-            optimization_interval_minutes: parseInt(document.getElementById('settings-interval').value) || 30,
-            default_pause_behavior: document.getElementById('settings-default-pause').value,
-            default_scale_method: document.getElementById('settings-default-scale').value
-        });
+        await api('/settings', 'PUT', updates);
+        Object.assign(_settings, updates);
         showToast('Configuracoes salvas', 'success');
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
@@ -888,8 +766,13 @@ async function saveSettings() {
 }
 
 function showChangeTokenModal() {
+    document.getElementById('modal-token').style.display = 'flex';
     document.getElementById('modal-token-input').value = '';
-    document.getElementById('modal-token').classList.add('show');
+    document.getElementById('modal-token-input').focus();
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
 }
 
 async function changeToken() {
@@ -898,214 +781,122 @@ async function changeToken() {
 
     try {
         await api('/token', 'PUT', { token });
-        closeModal('modal-token');
-        showToast('Token atualizado!', 'success');
-
-        // Re-discover accounts
-        await discoverAccounts();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
-    }
-}
-
-async function discoverAccounts() {
-    try {
-        await api('/accounts/discover', 'POST');
-        _accounts = await api('/accounts');
-        populateAccountSelect();
+        const result = await api('/token/validate', 'POST');
+        if (result.accounts) {
+            await api('/accounts/discover', 'POST');
+            _accounts = await api('/accounts');
+            populateAccountSelect();
+        }
+        _settings.has_token = true;
+        _settings.token_preview = token.slice(0, 10) + '...' + token.slice(-5);
         loadSettingsUI();
-        showToast(`${_accounts.length} contas encontradas`, 'success');
+        closeModal('modal-token');
+        showToast('Token atualizado com sucesso', 'success');
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
     }
 }
 
-// ==================== QUICK ACTIONS ====================
-async function quickPause(objectId) {
-    if (!confirm('Pausar este item?')) return;
-    try {
-        await api(`/actions/pause/${objectId}`, 'POST');
-        showToast('Pausado com sucesso', 'success');
-        await loadCampaigns();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
-    }
-}
-
-async function quickActivate(objectId) {
-    if (!confirm('Ativar este item?')) return;
-    try {
-        await api(`/actions/activate/${objectId}`, 'POST');
-        showToast('Ativado com sucesso', 'success');
-        await loadCampaigns();
-    } catch (e) {
-        showToast(`Erro: ${e.message}`, 'error');
-    }
-}
-
-// ==================== SOCKET.IO ====================
+// ==================== SOCKET LISTENERS ====================
 function setupSocketListeners() {
-    socket.on('connect', () => {
-        updateHeaderStatus('online');
-    });
-
-    socket.on('disconnect', () => {
-        updateHeaderStatus('offline');
-    });
-
     socket.on('optimization_progress', (data) => {
+        const progressEl = document.getElementById('optimization-progress');
+        const textEl = document.getElementById('opt-progress-text');
         const logEl = document.getElementById('opt-progress-log');
-        if (logEl) {
-            const line = document.createElement('div');
-            line.textContent = `[${new Date(data.timestamp).toLocaleTimeString('pt-BR')}] ${data.message}`;
-            line.style.padding = '2px 0';
-            if (data.status === 'error') line.style.color = 'var(--danger)';
-            if (data.status === 'action') line.style.color = 'var(--success)';
-            logEl.appendChild(line);
+
+        if (data.status === 'started') {
+            progressEl.style.display = 'block';
+        }
+
+        if (textEl) textEl.textContent = data.message || 'Otimizando...';
+
+        if (logEl && data.message) {
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString('pt-BR')}] ${data.message}`;
+            logEl.appendChild(div);
             logEl.scrollTop = logEl.scrollHeight;
         }
 
-        document.getElementById('opt-progress-text').textContent = data.message;
+        // Add to sidebar activity
+        addActivityItem(data.message, data.status);
 
-        // Track actions per campaign for the button counter
-        if (data.status === 'action' && data.campaign_id && _optimizingCampaigns[data.campaign_id]) {
-            _optimizingCampaigns[data.campaign_id].actions++;
-            updateOptButton(data.campaign_id);
+        if (data.status === 'completed' || data.status === 'error') {
+            setTimeout(() => {
+                progressEl.style.display = 'none';
+                if (logEl) logEl.innerHTML = '';
+            }, 5000);
+
+            // Refresh optimization page
+            loadOptimizationPage();
+
+            // Re-enable buttons
+            document.querySelectorAll('.btn-optimize').forEach(btn => {
+                btn.disabled = false;
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg> Otimizar';
+            });
         }
-
-        // Add to sidebar
-        addSidebarActivity(data.status === 'action' ? '⚡' : 'ℹ️', data.message);
     });
 
     socket.on('optimization_result', (result) => {
-        hideOptProgress();
-        const cid = result.campaign_id;
-        const actions = result.successful_actions || 0;
-
-        // Update today's count
-        _todayOptCounts[cid] = (_todayOptCounts[cid] || 0) + actions;
-        delete _optimizingCampaigns[cid];
-
-        // Restore "Otimizando..." button with updated count
-        const btn = document.getElementById(`opt-btn-${cid}`);
-        if (btn) {
-            const total = _todayOptCounts[cid] || 0;
-            btn.innerHTML = `<span class="opt-btn-arrow-up">&#8593;</span> Otimizando... <span class="opt-btn-count">${total}</span>`;
+        if (result.total_actions > 0) {
+            showToast(`${result.campaign_name}: ${result.successful_actions} acoes executadas`, 'success');
+        } else {
+            showToast(`${result.campaign_name}: nenhuma acao necessaria`, 'info');
         }
-
-        // Also update the badge
-        loadOptConfigs();
-
-        showToast(`Concluido: ${actions} otimizacao${actions !== 1 ? 'es' : ''} realizadas`, 'success');
-        loadOptLog();
-        loadDashboard();
     });
 
     socket.on('optimization_all_complete', (results) => {
-        hideOptProgress();
-        for (const result of results) {
-            const cid = result.campaign_id;
-            if (cid && _optimizingCampaigns[cid]) {
-                _optimizingCampaigns[cid].actions = result.total_actions || 0;
-                _optimizingCampaigns[cid].status = result.error ? 'error' : 'done';
-                updateOptButton(cid);
-            }
-        }
-        const total = results.reduce((s, r) => s + (r.total_actions || 0), 0);
-        showToast(`Todas as campanhas otimizadas: ${total} acoes`, 'success');
-        loadOptLog();
-        loadDashboard();
+        const totalActions = results.reduce((sum, r) => sum + (r.total_actions || 0), 0);
+        showToast(`Otimizacao concluida: ${results.length} campanhas, ${totalActions} acoes`, 'success');
+        loadOptimizationPage();
     });
 
     socket.on('optimization_error', (data) => {
-        hideOptProgress();
-        // Mark all running as error
-        Object.keys(_optimizingCampaigns).forEach(id => {
-            if (_optimizingCampaigns[id].status === 'running') {
-                _optimizingCampaigns[id].status = 'error';
-                updateOptButton(id);
-            }
-        });
         showToast(`Erro na otimizacao: ${data.error}`, 'error');
     });
 
     socket.on('midnight_reset', (data) => {
         showToast(`Reset meia-noite: ${data.reactivated} itens reativados`, 'info');
-        addSidebarActivity('🌙', `Reset meia-noite: ${data.reactivated} reativados`);
+        addActivityItem(`Reset meia-noite: ${data.reactivated} reativados`, 'info');
     });
 
-    socket.on('settings_changed', () => {
-        // Reload settings
-        api('/settings').then(s => { _settings = s; loadSettingsUI(); });
+    socket.on('optimization_complete', (data) => {
+        addActivityItem(`Auto-otimizacao: ${data.total_actions} acoes em ${data.campaigns} campanhas`, 'completed');
     });
+
+    socket.on('connect', () => updateHeaderStatus('online'));
+    socket.on('disconnect', () => updateHeaderStatus('offline'));
 }
 
+// ==================== ACTIVITY SIDEBAR ====================
+// Note: we don't have a visual sidebar for activity anymore (like OneClick)
+// but we track it via toasts
+function addActivityItem(message, status) {
+    // Could be extended to add a real-time activity panel
+    console.log(`[Activity] [${status}] ${message}`);
+}
+
+// ==================== HEADER STATUS ====================
 function updateHeaderStatus(status) {
-    const el = document.getElementById('header-status');
-    if (status === 'online' || (!status && socket.connected)) {
-        el.innerHTML = '<span class="dot"></span> <span>Online</span>';
-    } else if (status === 'offline') {
-        el.innerHTML = '<span class="dot idle"></span> <span>Offline</span>';
+    const dot = document.querySelector('.status-dot');
+    const text = document.getElementById('status-text');
+    if (dot) {
+        dot.className = 'status-dot';
+        if (status === 'online') dot.classList.add('online');
+        else if (status === 'warning') dot.classList.add('warning');
+    }
+    if (text) {
+        text.textContent = status === 'online' ? 'Online' : status === 'warning' ? 'Processando' : 'Offline';
     }
 }
 
-function addSidebarActivity(icon, text) {
-    const container = document.getElementById('sidebar-activity');
-    const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-    const item = document.createElement('div');
-    item.className = 'sidebar-item';
-    item.innerHTML = `
-        <span class="icon">${icon}</span>
-        <div class="text">
-            <div class="title">${esc(text)}</div>
-        </div>
-        <span class="time">${time}</span>
-    `;
-
-    // Remove initial empty message
-    const first = container.firstElementChild;
-    if (first && first.querySelector('.title')?.style.color) {
-        container.removeChild(first);
-    }
-
-    container.insertBefore(item, container.firstChild);
-
-    // Keep max 50 items
-    while (container.children.length > 50) {
-        container.removeChild(container.lastChild);
-    }
+// ==================== LOGOUT ====================
+async function logout() {
+    try {
+        await fetch('/api/logout', { method: 'POST' });
+    } catch (e) {}
+    window.location.href = '/login';
 }
-
-// ==================== TABS ====================
-function switchTab(tab) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tabs > .tab-btn').forEach(el => el.classList.remove('active'));
-
-    const tabEl = document.getElementById(`tab-${tab}`);
-    if (tabEl) tabEl.classList.add('active');
-
-    // Highlight the correct tab button
-    const tabNames = ['dashboard', 'optimization', 'campaigns', 'log', 'settings'];
-    const idx = tabNames.indexOf(tab);
-    const btns = document.querySelector('.main-content > .tabs').querySelectorAll('.tab-btn');
-    if (btns[idx]) btns[idx].classList.add('active');
-
-    // Persist active tab
-    localStorage.setItem('ks-active-tab', tab);
-}
-
-// ==================== MODAL ====================
-function closeModal(id) {
-    document.getElementById(id).classList.remove('show');
-}
-
-// Close modals on overlay click
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal-overlay')) {
-        e.target.classList.remove('show');
-    }
-});
 
 // ==================== TOAST ====================
 function showToast(message, type = 'info') {
@@ -1114,47 +905,69 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transform = 'translateX(40px)';
-        toast.style.transition = '0.3s ease';
+        toast.style.transform = 'translateX(100%)';
         setTimeout(() => toast.remove(), 300);
     }, 4000);
 }
 
 // ==================== HELPERS ====================
-function esc(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = String(str);
-    return div.innerHTML;
-}
-
 function setText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
 }
 
+function esc(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function formatNumber(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-    return n.toString();
+    if (n === null || n === undefined) return '0';
+    return new Intl.NumberFormat('pt-BR').format(n);
+}
+
+function formatMoney(n) {
+    if (n === null || n === undefined) return '0,00';
+    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+function formatMoneyInput(n) {
+    if (!n || n === 0) return '0,00';
+    return formatMoney(n);
+}
+
+function parseMoneyInput(value) {
+    if (!value) return 0;
+    // Handle both formats: "1.234,56" or "1234.56"
+    const cleaned = value.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
+}
+
+function formatDateTime(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function extractLeads(actions) {
+    if (!actions || !Array.isArray(actions)) return 0;
+    const leadAction = actions.find(a =>
+        a.action_type === 'lead' ||
+        a.action_type === 'onsite_conversion.lead_grouped' ||
+        a.action_type === 'offsite_conversion.fb_pixel_lead'
+    );
+    return leadAction ? parseInt(leadAction.value) || 0 : 0;
 }
 
 function extractConversions(actions) {
     if (!actions || !Array.isArray(actions)) return 0;
-    const a = actions.find(x =>
-        x.action_type === 'lead' ||
-        x.action_type === 'onsite_conversion.lead_grouped' ||
-        x.action_type === 'offsite_conversion.fb_pixel_lead' ||
-        x.action_type === 'offsite_conversion.fb_pixel_purchase' ||
-        x.action_type === 'purchase'
+    const convAction = actions.find(a =>
+        a.action_type === 'offsite_conversion.fb_pixel_purchase' ||
+        a.action_type === 'purchase' ||
+        a.action_type === 'lead' ||
+        a.action_type === 'onsite_conversion.lead_grouped'
     );
-    return a ? parseInt(a.value) || 0 : 0;
-}
-
-async function logout() {
-    await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/login';
+    return convAction ? parseInt(convAction.value) || 0 : 0;
 }

@@ -15,7 +15,7 @@ function getDefaultDb() {
         settings: {
             token: '',
             optimization_interval_minutes: 15,
-            auto_optimize: true,
+            auto_optimize: true,  // ON by default — runs 24/7 for all enabled campaigns
             timezone: 'America/Sao_Paulo',
             default_pause_behavior: 'flexible',
             default_scale_method: 'conservative'

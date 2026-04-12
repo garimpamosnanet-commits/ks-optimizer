@@ -120,7 +120,7 @@ const optimizer = new Optimizer(metaAPI, database, io);
 const scheduler = new Scheduler(optimizer, database, io);
 
 // Routes
-app.use('/api', apiRoutes(metaAPI, optimizer, database, io));
+app.use('/api', apiRoutes(metaAPI, optimizer, database, io, scheduler));
 
 // WebSocket auth
 io.use((socket, next) => {

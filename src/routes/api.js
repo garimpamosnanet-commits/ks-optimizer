@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 
-module.exports = function(metaAPI, optimizer, database, io) {
+module.exports = function(metaAPI, optimizer, database, io, scheduler) {
     const router = express.Router();
 
     // ==================== TOKEN / SETTINGS ====================
@@ -29,6 +29,11 @@ module.exports = function(metaAPI, optimizer, database, io) {
         // Restart scheduler if auto_optimize changed
         if (updates.auto_optimize !== undefined || updates.optimization_interval_minutes !== undefined) {
             io.emit('settings_changed', { auto_optimize: settings.auto_optimize });
+            // Restart scheduler to pick up new interval/toggle
+            if (scheduler) {
+                scheduler.restart();
+                console.log('[API] Scheduler reiniciado com novas configuracoes');
+            }
         }
     });
 

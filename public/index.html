@@ -1,248 +1,344 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KS Optimizer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
-    <script>
-        // Apply saved theme immediately to prevent flash
-        (function() {
-            var saved = localStorage.getItem('ks-theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', saved);
-        })();
-    </script>
 </head>
 <body>
-    <!-- HEADER -->
-    <header class="header">
-        <div class="header-left">
-            <img src="/ks-logo.png" alt="KS">
-            <span class="header-brand">KS Optimizer</span>
-            <span class="header-tag">Meta Ads</span>
-        </div>
-        <div class="header-right">
-            <div class="header-status" id="header-status">
-                <span class="dot idle"></span>
-                <span>Offline</span>
-            </div>
-            <div class="header-divider"></div>
-            <select class="header-account-select" id="account-select" onchange="onAccountChange()">
-                <option value="">Selecione uma conta</option>
-            </select>
-            <div class="header-divider"></div>
-            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" data-tooltip="Alternar tema">
-                <span id="theme-icon">&#9790;</span>
-            </button>
-            <div class="header-divider"></div>
-            <button class="btn btn-ghost btn-sm" onclick="logout()">Sair</button>
-        </div>
-    </header>
+    <!-- ==================== LOGIN SCREEN ==================== -->
+    <!-- handled by login.html -->
 
-    <!-- SETUP WIZARD (shown when no token) -->
+    <!-- ==================== SETUP WIZARD ==================== -->
     <div id="setup-wizard" class="setup-wizard" style="display:none">
-        <h2>Bem-vindo ao KS Optimizer</h2>
-        <p class="desc">Configure seu token da Meta para comecar a otimizar suas campanhas automaticamente.</p>
-        <div id="setup-step-1">
-            <div class="input-group">
-                <label>Token da API Meta</label>
-                <input type="password" id="setup-token" placeholder="Cole seu token aqui...">
+        <div class="setup-card">
+            <img src="/ks-logo.png" alt="KS" class="setup-logo">
+            <h2>Bem-vindo ao KS Optimizer</h2>
+            <p class="setup-desc">Configure seu token da Meta para comecar a otimizar suas campanhas automaticamente.</p>
+            <div id="setup-step-1">
+                <div class="form-group">
+                    <label>Token da API Meta</label>
+                    <input type="password" id="setup-token" placeholder="Cole seu token aqui..." class="form-input">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="setupValidateToken()" id="setup-validate-btn">Validar Token</button>
+                <p id="setup-error" class="form-error" style="display:none"></p>
             </div>
-            <button class="btn btn-primary" onclick="setupValidateToken()" id="setup-validate-btn">Validar Token</button>
-            <p id="setup-error" style="color:var(--danger);font-size:13px;margin-top:12px;display:none"></p>
-        </div>
-        <div id="setup-step-2" style="display:none">
-            <p style="font-size:14px;color:var(--success);margin-bottom:16px">Token validado com sucesso!</p>
-            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Contas encontradas:</p>
-            <div id="setup-accounts" class="accounts-list"></div>
-            <button class="btn btn-primary" onclick="setupComplete()" style="margin-top:16px">Continuar para o Dashboard</button>
+            <div id="setup-step-2" style="display:none">
+                <div class="alert alert-success">Token validado com sucesso!</div>
+                <p class="setup-desc">Contas encontradas:</p>
+                <div id="setup-accounts" class="accounts-list"></div>
+                <button class="btn btn-primary btn-block" onclick="setupComplete()" style="margin-top:16px">Continuar para o Dashboard</button>
+            </div>
         </div>
     </div>
 
-    <!-- MAIN APP -->
+    <!-- ==================== MAIN APP ==================== -->
     <div id="main-app" style="display:none">
-        <div class="app-layout">
-            <div class="main-content">
-                <!-- TABS -->
-                <div class="tabs">
-                    <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
-                    <button class="tab-btn" onclick="switchTab('optimization')">Otimizacao</button>
-                    <button class="tab-btn" onclick="switchTab('campaigns')">Campanhas</button>
-                    <button class="tab-btn" onclick="switchTab('log')">Historico</button>
-                    <button class="tab-btn" onclick="switchTab('settings')">Configuracoes</button>
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="header-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                </button>
+                <img src="/ks-logo.png" alt="KS" class="header-logo">
+                <span class="header-brand">KS Optimizer</span>
+                <span class="header-badge">META ADS</span>
+            </div>
+            <div class="header-center">
+                <span class="meta-partner-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                    Meta Business Partner
+                </span>
+            </div>
+            <div class="header-right">
+                <button class="header-icon-btn" id="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+                    <svg id="theme-icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                </button>
+                <div class="header-user" id="header-user">
+                    <div class="header-user-avatar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <span class="header-user-name" id="header-user-name">Usuario</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="app-body">
+            <!-- SIDEBAR -->
+            <aside class="sidebar" id="sidebar">
+                <nav class="sidebar-nav">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Funcionalidades</div>
+                        <a class="sidebar-link active" data-page="dashboard" onclick="navigateTo('dashboard')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                            Dashboard
+                        </a>
+                        <a class="sidebar-link" data-page="optimization" onclick="navigateTo('optimization')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M6 20V4M18 20v-6"/></svg>
+                            Otimizacao com IA
+                        </a>
+                        <a class="sidebar-link disabled">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                            Criar Campanha
+                            <span class="badge-soon">Em breve</span>
+                        </a>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Integracao</div>
+                        <a class="sidebar-link" data-page="accounts" onclick="navigateTo('accounts')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                            Contas de Anuncios
+                        </a>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Configuracoes</div>
+                        <a class="sidebar-link" data-page="settings" onclick="navigateTo('settings')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                            Configuracoes
+                        </a>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Acesso Rapido</div>
+                        <a class="sidebar-link" data-page="suffixes" onclick="navigateTo('suffixes')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                            Sistema de Sufixos
+                        </a>
+                        <a class="sidebar-link" data-page="tags" onclick="navigateTo('tags')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                            Tags de Controle
+                        </a>
+                        <a class="sidebar-link" data-page="log" onclick="navigateTo('log')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            Historico
+                        </a>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Ajuda</div>
+                        <a class="sidebar-link" data-page="faq" onclick="navigateTo('faq')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            FAQ
+                        </a>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- MAIN CONTENT -->
+            <main class="main-content" id="main-content">
+                <!-- ACCOUNT BAR -->
+                <div class="account-bar">
+                    <div class="account-bar-left">
+                        <span class="account-bar-label">Conta de Anuncios:</span>
+                        <select class="account-select" id="account-select" onchange="onAccountChange()">
+                            <option value="">Selecione uma conta</option>
+                        </select>
+                    </div>
+                    <div class="account-bar-right">
+                        <span class="account-bar-status" id="header-status">
+                            <span class="status-dot online"></span>
+                            <span id="status-text">Online</span>
+                        </span>
+                        <span class="account-bar-limit" id="account-limit"></span>
+                    </div>
                 </div>
 
-                <!-- TAB: DASHBOARD -->
-                <div class="tab-content active" id="tab-dashboard">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-                        <h2 style="font-size:18px;font-weight:700">Visao Geral</h2>
-                        <div class="date-filter" id="dashboard-date-filter">
-                            <button class="date-filter-btn" onclick="setDateFilter('today')">Hoje</button>
-                            <button class="date-filter-btn" onclick="setDateFilter('last_3d')">3D</button>
-                            <button class="date-filter-btn active" onclick="setDateFilter('last_7d')">7D</button>
-                            <button class="date-filter-btn" onclick="setDateFilter('last_14d')">14D</button>
-                            <button class="date-filter-btn" onclick="setDateFilter('last_30d')">30D</button>
-                        </div>
+                <!-- PAGE: DASHBOARD -->
+                <div class="page active" id="page-dashboard">
+                    <div class="breadcrumb">
+                        <span>Otimizacoes</span> / <a onclick="navigateTo('dashboard')">Dashboard</a> /
                     </div>
 
-                    <!-- Stats -->
-                    <div class="stats-grid" id="dashboard-stats">
-                        <div class="stat-card accent">
-                            <div class="label">Investimento</div>
-                            <div class="value" id="stat-spend">--</div>
-                        </div>
-                        <div class="stat-card success">
-                            <div class="label">Leads / Conversoes</div>
-                            <div class="value" id="stat-conversions">--</div>
-                        </div>
-                        <div class="stat-card warning">
-                            <div class="label">CPL / CPA</div>
-                            <div class="value" id="stat-cpa">--</div>
-                        </div>
-                        <div class="stat-card info">
-                            <div class="label">CTR</div>
-                            <div class="value" id="stat-ctr">--</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="label">CPC</div>
-                            <div class="value" id="stat-cpc">--</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="label">CPM</div>
-                            <div class="value" id="stat-cpm">--</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="label">Impressoes</div>
-                            <div class="value" id="stat-impressions">--</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="label">Alcance</div>
-                            <div class="value" id="stat-reach">--</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="label">Cliques</div>
-                            <div class="value" id="stat-clicks">--</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="label">Frequencia</div>
-                            <div class="value" id="stat-frequency">--</div>
-                        </div>
-                        <div class="stat-card success">
-                            <div class="label">Campanhas Ativas</div>
-                            <div class="value" id="stat-active-campaigns">--</div>
-                        </div>
-                        <div class="stat-card accent">
-                            <div class="label">Otimizacoes Hoje</div>
-                            <div class="value" id="stat-optimizations-today">--</div>
-                        </div>
-                    </div>
-
-                    <!-- Campaign Performance Summary -->
-                    <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Performance por Campanha</h3>
-                    <div id="dashboard-campaigns-summary" class="campaigns-grid">
-                        <div class="loading-overlay"><div class="spinner"></div> Carregando...</div>
-                    </div>
-                </div>
-
-                <!-- TAB: OPTIMIZATION -->
-                <div class="tab-content" id="tab-optimization">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-                        <h2 style="font-size:18px;font-weight:700">Otimizacao com IA</h2>
-                        <div style="display:flex;gap:8px">
-                            <button class="btn-optimize" onclick="runOptimizeAll()" id="btn-optimize-all">
-                                Otimizar Todas
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Optimization progress -->
-                    <div id="optimization-progress" style="display:none;margin-bottom:20px">
-                        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                                <div class="spinner"></div>
-                                <span style="font-size:14px;font-weight:600" id="opt-progress-text">Otimizando...</span>
+                    <div class="page-toolbar">
+                        <div class="toolbar-left">
+                            <div class="form-group-inline">
+                                <label>Periodo de visualizacao</label>
+                                <div class="date-filter" id="dashboard-date-filter">
+                                    <button class="date-btn" onclick="setDateFilter('today')">Hoje</button>
+                                    <button class="date-btn" onclick="setDateFilter('last_3d')">3D</button>
+                                    <button class="date-btn active" onclick="setDateFilter('last_7d')">7D</button>
+                                    <button class="date-btn" onclick="setDateFilter('last_14d')">14D</button>
+                                    <button class="date-btn" onclick="setDateFilter('last_30d')">30D</button>
+                                </div>
                             </div>
-                            <div class="progress-bar"><div class="fill indeterminate"></div></div>
-                            <div id="opt-progress-log" style="margin-top:10px;max-height:200px;overflow-y:auto;font-size:12px;color:var(--text-secondary)"></div>
+                        </div>
+                        <div class="toolbar-right">
+                            <a class="toolbar-action" id="link-meta-dashboard" href="#" target="_blank">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                Meta
+                            </a>
                         </div>
                     </div>
 
-                    <!-- Sub-tabs: Ativadas / Desativadas -->
-                    <div class="tabs" style="max-width:300px;margin-bottom:16px">
-                        <button class="tab-btn active" onclick="switchOptTab('enabled')">Ativadas</button>
-                        <button class="tab-btn" onclick="switchOptTab('disabled')">Desativadas</button>
-                    </div>
-
-                    <div id="opt-campaigns-enabled" class="campaigns-grid"></div>
-                    <div id="opt-campaigns-disabled" class="campaigns-grid" style="display:none"></div>
-                </div>
-
-                <!-- TAB: CAMPAIGNS -->
-                <div class="tab-content" id="tab-campaigns">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-                        <h2 style="font-size:18px;font-weight:700">Campanhas</h2>
-                        <div style="display:flex;gap:8px;align-items:center">
-                            <input type="text" id="campaign-search" placeholder="Buscar campanha..." style="padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:13px;font-family:inherit;width:250px">
-                            <button class="btn btn-outline btn-sm" onclick="refreshCampaigns()">Atualizar</button>
+                    <!-- Gerenciador de Anuncios -->
+                    <div class="metrics-section">
+                        <div class="section-title-line">Gerenciador de Anuncios</div>
+                        <div class="metrics-grid" id="dashboard-metrics-main">
+                            <div class="metric-card">
+                                <div class="metric-label">INVESTIMENTO TOTAL <span class="info-icon" title="Total gasto no periodo selecionado">i</span></div>
+                                <div class="metric-value" id="stat-spend">R$ 0,00</div>
+                                <div class="metric-compare" id="stat-spend-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">NUMERO DE LEADS <span class="info-icon" title="Total de leads gerados">i</span></div>
+                                <div class="metric-value" id="stat-leads">0</div>
+                                <div class="metric-compare" id="stat-leads-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">CUSTO POR LEAD <span class="info-icon" title="Investimento dividido pelo numero de leads">i</span></div>
+                                <div class="metric-value" id="stat-cpl">R$ 0,00</div>
+                                <div class="metric-compare" id="stat-cpl-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">IMPRESSOES <span class="info-icon" title="Numero de vezes que seus anuncios foram exibidos">i</span></div>
+                                <div class="metric-value" id="stat-impressions">0</div>
+                                <div class="metric-compare" id="stat-impressions-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">ALCANCE <span class="info-icon" title="Numero de pessoas unicas que viram seus anuncios">i</span></div>
+                                <div class="metric-value" id="stat-reach">0</div>
+                                <div class="metric-compare" id="stat-reach-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">FREQUENCIA <span class="info-icon" title="Media de vezes que cada pessoa viu seu anuncio">i</span></div>
+                                <div class="metric-value" id="stat-frequency">0</div>
+                                <div class="metric-compare" id="stat-frequency-compare"></div>
+                            </div>
                         </div>
                     </div>
-                    <div id="campaigns-list" class="campaigns-grid">
-                        <div class="loading-overlay"><div class="spinner"></div> Carregando campanhas...</div>
+
+                    <!-- Criativos -->
+                    <div class="metrics-section">
+                        <div class="section-title-line">Criativos</div>
+                        <div class="metrics-grid" id="dashboard-metrics-creatives">
+                            <div class="metric-card">
+                                <div class="metric-label">CTR <span class="info-icon" title="Taxa de cliques">i</span></div>
+                                <div class="metric-value" id="stat-ctr">0%</div>
+                                <div class="metric-compare" id="stat-ctr-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">CPC <span class="info-icon" title="Custo por clique">i</span></div>
+                                <div class="metric-value" id="stat-cpc">R$ 0,00</div>
+                                <div class="metric-compare" id="stat-cpc-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">CPM <span class="info-icon" title="Custo por mil impressoes">i</span></div>
+                                <div class="metric-value" id="stat-cpm">R$ 0,00</div>
+                                <div class="metric-compare" id="stat-cpm-compare"></div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">CLIQUES <span class="info-icon" title="Total de cliques nos anuncios">i</span></div>
+                                <div class="metric-value" id="stat-clicks">0</div>
+                                <div class="metric-compare" id="stat-clicks-compare"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance por Campanha -->
+                    <div class="metrics-section">
+                        <div class="section-title-line">Performance por Campanha</div>
+                        <div id="dashboard-campaigns-summary" class="campaigns-summary">
+                            <div class="loading-state"><div class="spinner"></div> Carregando...</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- TAB: LOG -->
-                <div class="tab-content" id="tab-log">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-                        <h2 style="font-size:18px;font-weight:700">Historico de Otimizacoes</h2>
-                        <div style="display:flex;gap:8px">
-                            <select id="log-filter-action" onchange="loadOptLog()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:13px;font-family:inherit">
-                                <option value="">Todas as acoes</option>
-                                <option value="pause">Pausas</option>
-                                <option value="reactivate">Reativacoes</option>
-                                <option value="scale">Escalas</option>
+                <!-- PAGE: OPTIMIZATION -->
+                <div class="page" id="page-optimization">
+                    <div class="breadcrumb">
+                        <span>Otimizacoes</span> / <a onclick="navigateTo('optimization')">Campanha</a> /
+                    </div>
+
+                    <!-- Info Banner -->
+                    <div class="info-banner">
+                        <div class="info-banner-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+                        </div>
+                        <div class="info-banner-text">
+                            <h3>Como parametrizar campanhas</h3>
+                            <p>Configure o custo maximo por conversao e o orcamento diario para cada campanha. O otimizador ira pausar conjuntos com CPA acima do limite e escalar os que performam bem.</p>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="opt-filters">
+                        <div class="opt-filter-search">
+                            <label>Nome da Campanha contem</label>
+                            <input type="text" id="opt-search" placeholder="Ex: Campanha Black Friday" class="form-input" oninput="filterOptCampaigns()">
+                        </div>
+                        <div class="opt-filter-status">
+                            <label>Filtro por status da otimizacao</label>
+                            <select id="opt-status-filter" class="form-select" onchange="filterOptCampaigns()">
+                                <option value="">Todas</option>
+                                <option value="enabled">Otimizando</option>
+                                <option value="disabled">Desativadas</option>
                             </select>
-                            <button class="btn btn-outline btn-sm" onclick="loadOptLog()">Atualizar</button>
                         </div>
                     </div>
-                    <div id="log-list" class="log-list"></div>
+
+                    <!-- Tabs -->
+                    <div class="opt-tabs">
+                        <button class="opt-tab active" onclick="switchOptTab('enabled')">Campanhas Ativadas</button>
+                        <button class="opt-tab" onclick="switchOptTab('disabled')">Campanhas Desativadas</button>
+                    </div>
+
+                    <!-- Campaign Cards -->
+                    <div id="opt-campaigns-enabled" class="opt-campaigns-list"></div>
+                    <div id="opt-campaigns-disabled" class="opt-campaigns-list" style="display:none"></div>
+
+                    <!-- Optimization Progress -->
+                    <div id="optimization-progress" class="opt-progress" style="display:none">
+                        <div class="opt-progress-inner">
+                            <div class="spinner"></div>
+                            <span id="opt-progress-text">Otimizando...</span>
+                        </div>
+                        <div id="opt-progress-log" class="opt-progress-log"></div>
+                    </div>
                 </div>
 
-                <!-- TAB: SETTINGS -->
-                <div class="tab-content" id="tab-settings">
-                    <h2 style="font-size:18px;font-weight:700;margin-bottom:20px">Configuracoes</h2>
+                <!-- PAGE: ACCOUNTS -->
+                <div class="page" id="page-accounts">
+                    <div class="breadcrumb">
+                        <span>Integracao</span> / <a>Contas de Anuncios</a> /
+                    </div>
+                    <div class="page-header">
+                        <h2>Contas de Anuncios</h2>
+                        <button class="btn btn-primary" onclick="discoverAccounts()">Redescobrir Contas</button>
+                    </div>
+                    <div id="accounts-list" class="accounts-grid"></div>
+                </div>
 
-                    <!-- Token -->
-                    <div class="settings-section">
+                <!-- PAGE: SETTINGS -->
+                <div class="page" id="page-settings">
+                    <div class="breadcrumb">
+                        <span>Configuracoes</span> /
+                    </div>
+                    <h2 class="page-title">Configuracoes</h2>
+
+                    <div class="settings-card">
                         <h3>Token Meta API</h3>
-                        <p class="desc">Token de acesso para a API do Meta Marketing.</p>
+                        <p class="settings-desc">Token de acesso para a API do Meta Marketing.</p>
                         <div class="settings-row">
                             <div>
-                                <div class="label">Status do Token</div>
-                                <div class="hint" id="settings-token-status">--</div>
+                                <div class="settings-label">Status do Token</div>
+                                <div class="settings-hint" id="settings-token-status">--</div>
                             </div>
-                            <button class="btn btn-outline btn-sm" onclick="showChangeTokenModal()">Alterar Token</button>
+                            <button class="btn btn-outline" onclick="showChangeTokenModal()">Alterar Token</button>
                         </div>
                     </div>
 
-                    <!-- Accounts -->
-                    <div class="settings-section">
-                        <h3>Contas de Anuncio</h3>
-                        <p class="desc">Contas Meta Ads vinculadas ao seu token.</p>
-                        <div id="settings-accounts"></div>
-                        <button class="btn btn-outline btn-sm" onclick="discoverAccounts()" style="margin-top:12px">Redescobrir Contas</button>
-                    </div>
-
-                    <!-- Auto Optimization -->
-                    <div class="settings-section">
+                    <div class="settings-card">
                         <h3>Otimizacao Automatica</h3>
-                        <p class="desc">Execute otimizacoes automaticamente em intervalos regulares.</p>
+                        <p class="settings-desc">Execute otimizacoes automaticamente em intervalos regulares.</p>
                         <div class="settings-row">
                             <div>
-                                <div class="label">Auto-otimizar</div>
-                                <div class="hint">Roda a cada X minutos para todas campanhas ativadas</div>
+                                <div class="settings-label">Auto-otimizar</div>
+                                <div class="settings-hint">Roda a cada X minutos para todas campanhas ativadas</div>
                             </div>
                             <label class="toggle">
                                 <input type="checkbox" id="settings-auto-optimize" onchange="saveSettings()">
@@ -251,107 +347,135 @@
                         </div>
                         <div class="settings-row">
                             <div>
-                                <div class="label">Intervalo (minutos)</div>
-                                <div class="hint">Tempo entre cada ciclo de otimizacao</div>
+                                <div class="settings-label">Intervalo (minutos)</div>
+                                <div class="settings-hint">Tempo entre cada ciclo de otimizacao</div>
                             </div>
-                            <input type="number" id="settings-interval" value="30" min="10" max="180" style="width:80px" onchange="saveSettings()">
+                            <input type="number" id="settings-interval" value="15" min="5" max="180" class="form-input form-input-sm" onchange="saveSettings()">
                         </div>
                         <div class="settings-row">
                             <div>
-                                <div class="label">Comportamento Padrao de Pausa</div>
+                                <div class="settings-label">Comportamento Padrao de Pausa</div>
                             </div>
-                            <select id="settings-default-pause" onchange="saveSettings()">
-                                <option value="rigorous">Rigorosa</option>
-                                <option value="flexible">Flexivel</option>
+                            <select id="settings-default-pause" class="form-select form-select-sm" onchange="saveSettings()">
+                                <option value="rigorous">Pausa Rigorosa</option>
+                                <option value="flexible">Pausa Flexivel</option>
                             </select>
                         </div>
                         <div class="settings-row">
                             <div>
-                                <div class="label">Metodo Padrao de Escala</div>
+                                <div class="settings-label">Metodo Padrao de Escala</div>
                             </div>
-                            <select id="settings-default-scale" onchange="saveSettings()">
-                                <option value="accelerated">Acelerada</option>
-                                <option value="conservative">Conservadora</option>
+                            <select id="settings-default-scale" class="form-select form-select-sm" onchange="saveSettings()">
+                                <option value="accelerated">Escala Acelerada</option>
+                                <option value="conservative">Escala Conservadora</option>
                             </select>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- SIDEBAR: Live activity -->
-            <aside class="sidebar" id="sidebar">
-                <div class="sidebar-header">
-                    <h3>Atividade em Tempo Real</h3>
+                    <div class="settings-card">
+                        <h3>Contas Vinculadas</h3>
+                        <p class="settings-desc">Contas Meta Ads vinculadas ao seu token.</p>
+                        <div id="settings-accounts"></div>
+                    </div>
                 </div>
-                <div class="sidebar-content" id="sidebar-activity">
-                    <div class="sidebar-item">
-                        <span class="icon">--</span>
-                        <div class="text">
-                            <div class="title" style="color:var(--text-muted)">Nenhuma atividade ainda</div>
+
+                <!-- PAGE: SUFFIXES -->
+                <div class="page" id="page-suffixes">
+                    <div class="breadcrumb">
+                        <span>Acesso Rapido</span> / <a>Sistema de Sufixos</a> /
+                    </div>
+                    <h2 class="page-title">Sistema de Sufixos</h2>
+                    <p class="page-desc">Sufixos sao adicionados automaticamente ao nome dos conjuntos/anuncios quando o otimizador executa uma acao. Isso permite rastrear o que aconteceu com cada item.</p>
+                    <div class="suffixes-grid" id="suffixes-list"></div>
+                </div>
+
+                <!-- PAGE: TAGS -->
+                <div class="page" id="page-tags">
+                    <div class="breadcrumb">
+                        <span>Acesso Rapido</span> / <a>Tags de Controle</a> /
+                    </div>
+                    <h2 class="page-title">Tags de Controle</h2>
+                    <p class="page-desc">Adicione tags ao nome de conjuntos ou anuncios para controlar o comportamento do otimizador.</p>
+                    <div class="tags-info">
+                        <div class="tag-item">
+                            <code>[manual]</code>
+                            <span>O otimizador ignora completamente este item</span>
+                        </div>
+                        <div class="tag-item">
+                            <code>[nao duplicar]</code>
+                            <span>Impede escala horizontal (duplicacao)</span>
+                        </div>
+                        <div class="tag-item">
+                            <code>[ativo diariamente]</code>
+                            <span>Sempre reativado na meia-noite</span>
                         </div>
                     </div>
                 </div>
-            </aside>
+
+                <!-- PAGE: LOG -->
+                <div class="page" id="page-log">
+                    <div class="breadcrumb">
+                        <span>Acesso Rapido</span> / <a>Historico</a> /
+                    </div>
+                    <div class="page-header">
+                        <h2>Historico de Otimizacoes</h2>
+                        <div class="page-header-actions">
+                            <select id="log-filter-action" onchange="loadOptLog()" class="form-select">
+                                <option value="">Todas as acoes</option>
+                                <option value="pause">Pausas</option>
+                                <option value="reactivate">Reativacoes</option>
+                                <option value="scale">Escalas</option>
+                            </select>
+                            <button class="btn btn-outline" onclick="loadOptLog()">Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="log-list" class="log-list"></div>
+                </div>
+
+                <!-- PAGE: FAQ -->
+                <div class="page" id="page-faq">
+                    <div class="breadcrumb">
+                        <span>Ajuda</span> / <a>FAQ</a> /
+                    </div>
+                    <h2 class="page-title">Perguntas Frequentes</h2>
+                    <div class="faq-list">
+                        <div class="faq-item">
+                            <h4>O que e Pausa Rigorosa vs Flexivel?</h4>
+                            <p><strong>Rigorosa</strong>: baixa tolerancia. Pausa conjuntos/anuncios agressivamente ao menor sinal de CPA alto. Ideal para budgets apertados.<br>
+                            <strong>Flexivel</strong>: mais tolerancia. Da mais chances antes de pausar. Ideal para campanhas em fase de aprendizado.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>O que e Escala Acelerada vs Conservadora?</h4>
+                            <p><strong>Acelerada</strong>: escala horizontal (duplica conjuntos validados) + vertical (aumenta budget em ate 30%). Mais agressiva.<br>
+                            <strong>Conservadora</strong>: apenas escala vertical com incrementos de 10%. Mais segura.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>O que e o prefixo [KS ON]?</h4>
+                            <p>Quando voce ativa a otimizacao de uma campanha, o prefixo <code>[KS ON]</code> e adicionado ao nome da campanha no Meta Ads. Isso indica que a campanha esta sendo otimizada pelo KS Optimizer. Ao desativar, o prefixo e removido.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>O que sao pausas temporarias?</h4>
+                            <p>Pausas temporarias sao aplicadas durante o dia quando o CPA esta muito alto. A meia-noite (horario de Brasilia), esses itens sao automaticamente reativados com o nome limpo.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>Como funciona a escala horizontal?</h4>
+                            <p>Quando um conjunto tem CPA excelente (abaixo de 60% do maximo), o otimizador duplica esse conjunto criando uma copia identica. Isso permite capturar mais volume mantendo a performance.</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
     </div>
 
     <!-- MODAL: Change Token -->
-    <div class="modal-overlay" id="modal-token">
+    <div class="modal-overlay" id="modal-token" style="display:none">
         <div class="modal">
             <h3>Alterar Token</h3>
-            <p class="desc">Cole o novo token da API do Meta.</p>
-            <div class="input-group" style="margin-bottom:0">
-                <input type="password" id="modal-token-input" placeholder="Novo token..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:14px;font-family:inherit">
-            </div>
+            <p class="modal-desc">Cole o novo token da API do Meta.</p>
+            <input type="password" id="modal-token-input" placeholder="Novo token..." class="form-input">
             <div class="modal-actions">
                 <button class="btn btn-ghost" onclick="closeModal('modal-token')">Cancelar</button>
                 <button class="btn btn-primary" onclick="changeToken()">Salvar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL: Campaign Optimization Config -->
-    <div class="modal-overlay" id="modal-opt-config">
-        <div class="modal" style="max-width:520px">
-            <h3>Configurar Otimizacao</h3>
-            <p class="desc" id="modal-opt-campaign-name">--</p>
-            <input type="hidden" id="modal-opt-campaign-id">
-            <input type="hidden" id="modal-opt-account-id">
-            <div class="opt-config-fields">
-                <div class="opt-field">
-                    <label>Comportamento para Pausar</label>
-                    <select id="modal-opt-pause">
-                        <option value="rigorous">Pausa Rigorosa</option>
-                        <option value="flexible">Pausa Flexivel</option>
-                    </select>
-                </div>
-                <div class="opt-field">
-                    <label>Metodo de Escala</label>
-                    <select id="modal-opt-scale">
-                        <option value="accelerated">Escala Acelerada</option>
-                        <option value="conservative">Escala Conservadora</option>
-                    </select>
-                </div>
-                <div class="opt-field">
-                    <label>Custo por Conversao para PAUSAR (R$)</label>
-                    <input type="number" id="modal-opt-max-cpa" step="0.50" min="0" placeholder="Ex: 5.00">
-                </div>
-                <div class="opt-field">
-                    <label>Orcamento Diario Maximo CBO (R$)</label>
-                    <input type="number" id="modal-opt-max-budget" step="10" min="0" placeholder="Ex: 200">
-                </div>
-            </div>
-            <div style="margin-top:14px;display:flex;align-items:center;gap:8px">
-                <label class="toggle">
-                    <input type="checkbox" id="modal-opt-unlimited">
-                    <span class="toggle-slider"></span>
-                </label>
-                <span style="font-size:13px;color:var(--text-secondary)">Escala ilimitada</span>
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-ghost" onclick="closeModal('modal-opt-config')">Cancelar</button>
-                <button class="btn btn-danger btn-sm" onclick="removeOptConfig()" id="btn-remove-opt" style="display:none">Remover</button>
-                <button class="btn btn-primary" onclick="saveOptConfig()">Salvar</button>
             </div>
         </div>
     </div>
