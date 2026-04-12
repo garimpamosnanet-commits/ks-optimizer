@@ -81,6 +81,7 @@
                 });
                 const data = await resp.json();
                 if (data.ok) {
+                    localStorage.setItem('ks-user-name', data.name || 'Usuario');
                     window.location.href = '/';
                 } else {
                     errEl.textContent = data.error || 'Credenciais invalidas';

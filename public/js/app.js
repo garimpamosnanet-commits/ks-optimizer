@@ -70,6 +70,10 @@ async function loadApp() {
     document.getElementById('setup-wizard').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
 
+    // Set user name from cookie/session
+    const savedName = localStorage.getItem('ks-user-name') || 'Usuario';
+    setText('header-user-name', savedName);
+
     try {
         _accounts = await api('/accounts');
     } catch (e) {
@@ -1304,6 +1308,28 @@ function updateHeaderStatus(status) {
         text.textContent = status === 'online' ? 'Online' : status === 'warning' ? 'Processando' : 'Offline';
     }
 }
+
+// ==================== USER MENU ====================
+function toggleUserMenu() {
+    const dd = document.getElementById('user-dropdown');
+    const name = localStorage.getItem('ks-user-name') || 'Usuario';
+    const ddName = document.getElementById('dropdown-user-name');
+    if (ddName) ddName.textContent = name;
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function closeUserMenu() {
+    document.getElementById('user-dropdown').style.display = 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const wrapper = document.querySelector('.header-user-wrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        const dd = document.getElementById('user-dropdown');
+        if (dd) dd.style.display = 'none';
+    }
+});
 
 // ==================== LOGOUT ====================
 async function logout() {
