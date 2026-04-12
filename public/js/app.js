@@ -571,6 +571,68 @@ function switchOptTab(tab) {
     document.querySelector(`.opt-tab:${tab === 'enabled' ? 'first-child' : 'last-child'}`).classList.add('active');
     document.getElementById('opt-campaigns-enabled').style.display = tab === 'enabled' ? 'flex' : 'none';
     document.getElementById('opt-campaigns-disabled').style.display = tab === 'disabled' ? 'flex' : 'none';
+
+    // Show/hide bulk action buttons
+    const btnActivateAll = document.getElementById('btn-activate-all');
+    const btnOptimizeAll = document.getElementById('btn-optimize-all');
+    if (btnActivateAll) btnActivateAll.style.display = tab === 'disabled' ? 'inline-flex' : 'none';
+    if (btnOptimizeAll) btnOptimizeAll.style.display = tab === 'enabled' ? 'inline-flex' : 'none';
+}
+
+async function activateAllOptimization() {
+    const disabled = _campaigns.filter(c => {
+        const cfg = _configs.find(cfg => cfg.campaign_id === c.id);
+        return !cfg || !cfg.enabled;
+    });
+
+    if (disabled.length === 0) {
+        showToast('Todas as campanhas ja estao ativadas', 'info');
+        return;
+    }
+
+    // Check if all have CPA configured
+    const withoutCPA = disabled.filter(c => {
+        const cfg = _configs.find(cfg => cfg.campaign_id === c.id);
+        return !cfg || !cfg.max_cpa || cfg.max_cpa <= 0;
+    });
+
+    if (withoutCPA.length > 0) {
+        showToast(`${withoutCPA.length} campanha(s) sem CPL maximo configurado. Configure antes de ativar.`, 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-activate-all');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Ativando...';
+    }
+
+    let activated = 0;
+    for (const campaign of disabled) {
+        try {
+            await saveOptConfig(campaign.id, { enabled: true });
+            activated++;
+        } catch (e) {
+            console.error(`Erro ao ativar ${campaign.name}:`, e);
+        }
+    }
+
+    // Ensure auto-optimize is ON
+    if (!_settings.auto_optimize) {
+        await api('/settings', 'PUT', { auto_optimize: true });
+        _settings.auto_optimize = true;
+    }
+
+    showToast(`${activated} campanha(s) ativadas pra otimizacao 24/7!`, 'success');
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg> Ativar Todas';
+    }
+
+    // Refresh
+    await loadOptimizationPage();
+    switchOptTab('enabled');
 }
 
 // ==================== OPTIMIZATION ACTIONS ====================

@@ -281,10 +281,22 @@
                         </div>
                     </div>
 
-                    <!-- Tabs -->
-                    <div class="opt-tabs">
-                        <button class="opt-tab active" onclick="switchOptTab('enabled')">Campanhas Ativadas</button>
-                        <button class="opt-tab" onclick="switchOptTab('disabled')">Campanhas Desativadas</button>
+                    <!-- Tabs + Bulk Actions -->
+                    <div class="opt-tabs-bar">
+                        <div class="opt-tabs">
+                            <button class="opt-tab active" onclick="switchOptTab('enabled')">Campanhas Ativadas</button>
+                            <button class="opt-tab" onclick="switchOptTab('disabled')">Campanhas Desativadas</button>
+                        </div>
+                        <div class="opt-bulk-actions" id="opt-bulk-actions">
+                            <button class="btn btn-primary btn-sm" onclick="activateAllOptimization()" id="btn-activate-all" style="display:none">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+                                Ativar Todas
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="runOptimizeAll()" id="btn-optimize-all" style="display:none">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
+                                Otimizar Todas Agora
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Campaign Cards -->

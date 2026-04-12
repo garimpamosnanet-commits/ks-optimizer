@@ -606,11 +606,23 @@ body {
     margin-bottom: 4px;
 }
 
+.opt-tabs-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 20px;
+}
+
+.opt-bulk-actions {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 8px;
+}
+
 .opt-tabs {
     display: flex;
     gap: 0;
-    border-bottom: 2px solid var(--border);
-    margin-bottom: 20px;
 }
 
 .opt-tab {
