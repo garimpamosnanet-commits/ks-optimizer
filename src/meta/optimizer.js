@@ -432,11 +432,38 @@ class Optimizer {
 
         // === INTELLIGENCE LAYER ===
 
+        // 0. LEARNING PHASE PROTECTION — never touch items that are too new
+        const createdTime = item.created_time ? new Date(item.created_time) : null;
+        const now = new Date();
+        const ageHours = createdTime ? (now - createdTime) / (1000 * 60 * 60) : 999;
+        const ageDays = ageHours / 24;
+
+        // Items less than 48 hours old: NEVER pause (learning phase)
+        if (ageHours < 48) {
+            return null;
+        }
+
+        // Items less than 72 hours old: only pause if EXTREME waste (spend > 10x CPA with 0 conversions)
+        if (ageHours < 72) {
+            const spend7d = m7d ? m7d.spend : 0;
+            const convs7d = m7d ? m7d.conversions : 0;
+            if (convs7d > 0 || spend7d < maxCPA * 10) {
+                return null; // Still learning, not extreme waste
+            }
+            // Fall through only for extreme waste cases
+        }
+
         // 1. MINIMUM SPEND GUARD — need data before deciding
         const minSpendForRules = Math.max(maxCPA * 5, 25); // At least 5x CPA or R$25
         const totalSpend7d = m7d ? m7d.spend : 0;
         if (totalSpend7d < minSpendForRules) {
             return null; // Not enough data yet
+        }
+
+        // 1b. MINIMUM IMPRESSIONS GUARD — need volume before judging
+        const impressions7d = m7d ? m7d.impressions : 0;
+        if (impressions7d < 500) {
+            return null; // Not enough reach to evaluate
         }
 
         // 2. TIME-OF-DAY AWARENESS — don't temp-pause before 14h BRT, day is still young
@@ -459,11 +486,16 @@ class Optimizer {
             return null; // Never pause a top performer
         }
 
+        // 6. RECENT STARTER LENIENCY — items 3-5 days old get 50% more tolerance
+        const isRecentStarter = ageDays >= 3 && ageDays <= 5;
+        const ageTolerance = isRecentStarter ? 1.5 : 1.0;
+
         // === FALTA DE CONVERSAO ===
 
-        // Rule 1: Never converted (3+ days active, 0 conversions, significant spend)
-
-        if (m7d && m7d.spend > maxCPA * 2 && m7d.conversions === 0 && m7d.checkouts === 0) {
+        // Rule 1: Never converted (needs at least 5 days + significant spend)
+        if (ageDays < 5) {
+            // Too early to declare "never converted" — skip this rule
+        } else if (m7d && m7d.spend > maxCPA * 3 && m7d.conversions === 0 && m7d.checkouts === 0) {
             return this._createPauseAction(item, objectType, 'pause_never_converted',
                 SUFFIXES.PAUSE_NEVER_CONVERTED,
                 `Nunca converteu (spend R$${m7d.spend.toFixed(2)}, 0 conversoes em 7 dias)`
@@ -478,19 +510,19 @@ class Optimizer {
             );
         }
 
-        // Rule 3: No conversions in 7 days (rigorous) or 14 days (flexible)
-        if (isRigorous && m7d && m7d.conversions === 0 && m7d.spend > maxCPA * 2) {
+        // Rule 3: No conversions in 7 days (rigorous only, needs 5+ days old)
+        if (isRigorous && ageDays >= 5 && m7d && m7d.conversions === 0 && m7d.spend > maxCPA * 2 * ageTolerance) {
             return this._createPauseAction(item, objectType, 'pause_no_conv_7d',
                 SUFFIXES.PAUSE_NO_CONV_7D,
-                `Sem conversoes ha 7 dias (spend R$${m7d.spend.toFixed(2)}) [Rigorosa]`
+                `Sem conversoes ha 7 dias (spend R$${m7d.spend.toFixed(2)}, ${ageDays.toFixed(0)} dias rodando) [Rigorosa]`
             );
         }
 
-        // Rule 4: No conversions + no checkout
-        if (m7d && m7d.conversions === 0 && m7d.checkouts === 0 && m7d.spend > maxCPA * 1.5) {
+        // Rule 4: No conversions + no checkout (needs 5+ days old)
+        if (ageDays >= 5 && m7d && m7d.conversions === 0 && m7d.checkouts === 0 && m7d.spend > maxCPA * 2 * ageTolerance) {
             return this._createPauseAction(item, objectType, 'pause_no_conv_no_checkout',
                 SUFFIXES.PAUSE_NO_CONV_NO_CHECKOUT,
-                `Sem conversoes e sem checkout em 7d (spend R$${m7d.spend.toFixed(2)})`
+                `Sem conversoes e sem checkout em 7d (spend R$${m7d.spend.toFixed(2)}, ${ageDays.toFixed(0)} dias rodando)`
             );
         }
 
@@ -504,9 +536,9 @@ class Optimizer {
 
         // === PERDA DE PERFORMANCE ===
 
-        // Rule 6: Max CPA exceeded (if trend improving, give 30% more room)
+        // Rule 6: Max CPA exceeded (if trend improving or recent starter, give more room)
         const cpaTolerance = trendImproving ? 1.3 : 1.0;
-        if (m7d && m7d.cpa && m7d.cpa !== Infinity && m7d.cpa > maxCPA * (isRigorous ? 1.2 : 1.5) * cpaTolerance) {
+        if (m7d && m7d.cpa && m7d.cpa !== Infinity && m7d.cpa > maxCPA * (isRigorous ? 1.2 : 1.5) * cpaTolerance * ageTolerance) {
             return this._createPauseAction(item, objectType, 'pause_max_cpa',
                 SUFFIXES.PAUSE_MAX_CPA,
                 `CPA acima do maximo (R$${m7d.cpa.toFixed(2)} vs limite R$${maxCPA.toFixed(2)})`
@@ -595,6 +627,13 @@ class Optimizer {
         const m7d = metrics.last_7d;
         const m3d = metrics.last_3d;
         const mToday = metrics.today;
+
+        // LEARNING PHASE — don't scale items less than 3 days old
+        const createdTime = adSet.created_time ? new Date(adSet.created_time) : null;
+        const ageHours = createdTime ? (new Date() - createdTime) / (1000 * 60 * 60) : 999;
+        if (ageHours < 72) {
+            return null; // Too new to scale — let it stabilize first
+        }
 
         if (!m7d || !m7d.cpa || m7d.cpa === Infinity) return null;
 
