@@ -306,15 +306,10 @@ async function loadRealEntries(totalSpend, metaLeads) {
     try {
         const data = await api(`/entries/${instanceName}?from=${from}&to=${to}`);
 
-        // data can be array or single object
-        const entries = Array.isArray(data) ? data : [data];
-        let totalJoins = 0, totalFastExits = 0;
-
-        for (const e of entries) {
-            totalJoins += (e.organicJoins || 0);
-            totalFastExits += (e.fastExits || 0);
-        }
-
+        // Response format: { totals: { organicJoins, fastExits, ... }, instances: [...] }
+        const totals = data.totals || data.instances?.[0] || data;
+        const totalJoins = totals.organicJoins || 0;
+        const totalFastExits = totals.fastExits || 0;
         const netEntries = totalJoins - totalFastExits;
         const cplReal = totalJoins > 0 && totalSpend > 0 ? totalSpend / totalJoins : 0;
 
