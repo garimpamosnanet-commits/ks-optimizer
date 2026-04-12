@@ -321,20 +321,22 @@ async function loadRealEntries(totalSpend, metaLeads) {
     try {
         const data = await api(`/entries/${instanceName}?from=${from}&to=${to}`);
 
-        // Response format: { totals: { organicJoins, fastExits, ... }, instances: [...] }
+        // Response format: { totals: { organicJoins, fastExits, validLeads, ... }, instances: [...] }
         const totals = data.totals || data.instances?.[0] || data;
         const totalJoins = totals.organicJoins || 0;
         const totalFastExits = totals.fastExits || 0;
-        const netEntries = totalJoins - totalFastExits;
-        const cplReal = totalJoins > 0 && totalSpend > 0 ? totalSpend / totalJoins : 0;
+        const validLeads = totals.validLeads || (totalJoins - totalFastExits);
+        const netEntries = validLeads;
+        const cplReal = validLeads > 0 && totalSpend > 0 ? totalSpend / validLeads : 0;
 
         setText('stat-leads-meta', formatNumber(metaLeads || 0));
         setText('stat-entries', formatNumber(totalJoins));
         setText('stat-fast-exits', formatNumber(totalFastExits));
-        setText('stat-net-entries', formatNumber(netEntries));
+        setText('stat-net-entries', formatNumber(validLeads));
         setText('stat-cpl-real', cplReal > 0 ? `R$ ${formatMoney(cplReal)}` : '--');
-        const convRate = metaLeads > 0 && totalJoins > 0 ? ((totalJoins / metaLeads) * 100) : 0;
-        setText('stat-conv-rate', convRate > 0 ? `${convRate.toFixed(1)}%` : '--');
+        // Retencao 24h = validLeads / totalJoins (identico ao Pedro)
+        const retention = totalJoins > 0 ? ((validLeads / totalJoins) * 100) : 0;
+        setText('stat-conv-rate', retention > 0 ? `${retention.toFixed(1)}%` : '--');
 
         if (section) section.style.display = 'block';
         _entriesData = { totalJoins, totalFastExits, netEntries, cplReal };
