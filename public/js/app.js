@@ -387,7 +387,8 @@ async function renderPerfCampaigns(container) {
         return;
     }
 
-    let html = '';
+    // Collect all data first to find top performer
+    const rows = [];
     for (const c of campaigns.slice(0, 20)) {
         try {
             const ins = await api(`/insights/${c.id}?date_preset=${_dateFilter}`);
@@ -401,11 +402,14 @@ async function renderPerfCampaigns(container) {
             const cplClass = config && config.max_cpa
                 ? (cpl > config.max_cpa * 1.3 ? 'bad' : cpl > config.max_cpa ? 'warning' : 'good')
                 : '';
-
             const budget = c.daily_budget ? parseInt(c.daily_budget) / 100 : (c.lifetime_budget ? parseInt(c.lifetime_budget) / 100 : 0);
-            html += buildPerfRow(c.name, spend, leads, cpl, ctr, freq, cplClass, budget);
+            rows.push({ name: c.name, spend, leads, cpl, ctr, freq, cplClass, budget });
         } catch (e) { /* skip */ }
     }
+
+    // Find top leads performer
+    const maxLeads = Math.max(...rows.map(r => r.leads));
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, r.cplClass, r.budget, r.leads > 0 && r.leads === maxLeads)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
@@ -426,16 +430,19 @@ async function renderPerfAdsets(container) {
         }
     }
 
-    let html = '';
-    for (const raw of insights.slice(0, 30)) {
+    // Collect rows and find top
+    const rows = insights.slice(0, 30).map(raw => {
         const spend = parseFloat(raw.spend) || 0;
         const leads = extractLeads(raw.actions);
         const cpl = leads > 0 ? spend / leads : 0;
         const ctr = parseFloat(raw.ctr) || 0;
         const freq = parseFloat(raw.frequency) || 0;
         const budget = budgetMap[raw.adset_id] || 0;
-        html += buildPerfRow(raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, '', budget);
-    }
+        return { name: raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, budget };
+    });
+
+    const maxLeads = Math.max(...rows.map(r => r.leads));
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, '', r.budget, r.leads > 0 && r.leads === maxLeads)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
@@ -446,23 +453,29 @@ async function renderPerfAds(container) {
         return;
     }
 
-    let html = '';
-    for (const raw of insights.slice(0, 30)) {
+    const rows = insights.slice(0, 30).map(raw => {
         const spend = parseFloat(raw.spend) || 0;
         const leads = extractLeads(raw.actions);
         const cpl = leads > 0 ? spend / leads : 0;
         const ctr = parseFloat(raw.ctr) || 0;
         const freq = parseFloat(raw.frequency) || 0;
-        html += buildPerfRow(raw.ad_name || raw.ad_id, spend, leads, cpl, ctr, freq, '', 0);
-    }
+        return { name: raw.ad_name || raw.ad_id, spend, leads, cpl, ctr, freq };
+    });
+
+    const maxLeads = Math.max(...rows.map(r => r.leads));
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, '', 0, r.leads > 0 && r.leads === maxLeads)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
-function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget) {
+function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTopLeads) {
     const budgetDisplay = budget ? `R$${formatMoney(budget)}` : '--';
+    const topClass = isTopLeads ? 'top-performer' : '';
     return `
-    <div class="campaign-summary-row">
-        <div class="campaign-summary-name" title="${esc(name)}">${esc(name)}</div>
+    <div class="campaign-summary-row ${topClass}">
+        <div class="campaign-summary-name" title="${esc(name)}">
+            ${isTopLeads ? '<span class="top-badge">TOP</span>' : ''}
+            ${esc(name)}
+        </div>
         <div class="campaign-summary-metric">
             <div class="label">Budget/dia</div>
             <div class="value">${budgetDisplay}</div>
@@ -473,7 +486,7 @@ function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget) {
         </div>
         <div class="campaign-summary-metric">
             <div class="label">Leads</div>
-            <div class="value">${leads}</div>
+            <div class="value ${isTopLeads ? 'leads-top' : ''}">${leads}</div>
         </div>
         <div class="campaign-summary-metric">
             <div class="label">CPL</div>
