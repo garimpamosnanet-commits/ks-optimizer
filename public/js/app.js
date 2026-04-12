@@ -262,16 +262,27 @@ async function loadDashboard() {
 let _perfTab = 'campaign';
 let _dashboardAutoRefresh = null;
 
-// Mapeamento conta Meta -> instancia SalesEcommerce
+// Mapeamento conta Meta -> instancia SalesEcommerce (TODAS)
 const ACCOUNT_INSTANCE_MAP = {
-    'act_343078820487125': 'hudson-oliveira',        // Hudson 2.0
-    'act_700924378146370': 'junior-automotiva',      // Livia/Junior
-    'act_1220899122923055': 'achados-secretos',      // Andre/Jorge
-    'act_1239747731524637': 'ofertas-da-jenni',      // Jennifer/Dani Wal
-    'act_1720931478425787': 'achadinho-da-ivis',     // Ivone
-    'act_1916013155820452': 'achadinhos-do-gilioli', // Gilioli
-    'act_328201254007546': 'sabaziuscp',             // Sabazius
-    'act_338281941994189': 'promocoes-do-dia',       // Renata
+    'act_343078820487125': 'hudson-oliveira',         // Hudson 2.0
+    'act_4260177337539586': 'hudson-oliveira',        // Hudson (outra conta)
+    'act_700924378146370': 'junior-automotiva',       // Livia Bombo / Junior
+    'act_1319994062238404': 'junior-automotiva',      // Junior (conta propria)
+    'act_1220899122923055': 'achados-secretos',       // Andre / Larisse
+    'act_321696970444959': 'achados-secretos',        // Jorge
+    'act_1239747731524637': 'ofertas-da-jenni',       // Jennifer / Dani Wal
+    'act_1720931478425787': 'achadinho-da-ivis',      // Ivone
+    'act_1916013155820452': 'achadinhos-do-gilioli',  // Gilioli
+    'act_328201254007546': 'sabaziuscp',              // Sabazius
+    'act_338281941994189': 'promocoes-do-dia',        // Renata
+    'act_339589001914046': 'achadinhos-da-dri',       // Adriana
+    'act_829642158833837': 'achadinhos-da-anna',      // Amanda
+    'act_840398074413162': 'achadinhos-do-borogodo',  // Danielli
+    'act_6745107755555484': 'ze-ofertas',             // Filipe
+    'act_1843590456346828': 'garimpo-da-mamae',       // Franci
+    'act_1139088090094699': 'dicas-da-ca',            // Debaldi
+    'act_25573157989016239': 'promo-da-oportunidade', // Paloma
+    'act_4036561509942696': 'promo-da-dinda',         // Dani Wal / Wal / Jose Camilo
 };
 let _entriesData = null;
 
