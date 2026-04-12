@@ -246,6 +246,9 @@ async function loadDashboard() {
             setText('stat-clicks', formatNumber(clicks));
         }
 
+        // Load real entries from SalesEcommerce
+        await loadRealEntries(raw ? parseFloat(raw.spend) || 0 : 0);
+
         // Load campaign performance
         const campaigns = await api(`/campaigns?account_id=${_currentAccount}&status=ACTIVE`);
         await loadDashboardCampaigns(campaigns);
@@ -257,6 +260,75 @@ async function loadDashboard() {
 
 let _perfTab = 'campaign';
 let _dashboardAutoRefresh = null;
+
+// Mapeamento conta Meta -> instancia SalesEcommerce
+const ACCOUNT_INSTANCE_MAP = {
+    'act_343078820487125': 'hudson-oliveira',        // Hudson 2.0
+    'act_700924378146370': 'junior-automotiva',      // Livia/Junior
+    'act_1220899122923055': 'achados-secretos',      // Andre/Jorge
+    'act_1239747731524637': 'ofertas-da-jenni',      // Jennifer/Dani Wal
+    'act_1720931478425787': 'achadinho-da-ivis',     // Ivone
+    'act_1916013155820452': 'achadinhos-do-gilioli', // Gilioli
+    'act_328201254007546': 'sabaziuscp',             // Sabazius
+    'act_338281941994189': 'promocoes-do-dia',       // Renata
+};
+let _entriesData = null;
+
+async function loadRealEntries(totalSpend) {
+    const instanceName = ACCOUNT_INSTANCE_MAP[_currentAccount];
+    const section = document.getElementById('section-entries');
+
+    if (!instanceName) {
+        if (section) section.style.display = 'none';
+        return;
+    }
+
+    // Calculate date range based on filter
+    const now = new Date();
+    let from, to;
+    to = now.toISOString().slice(0, 10);
+
+    if (_dateFilter === 'today') {
+        from = to;
+    } else if (_dateFilter === 'last_3d') {
+        from = new Date(now - 3 * 86400000).toISOString().slice(0, 10);
+    } else if (_dateFilter === 'last_7d') {
+        from = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+    } else if (_dateFilter === 'last_14d') {
+        from = new Date(now - 14 * 86400000).toISOString().slice(0, 10);
+    } else if (_dateFilter === 'last_30d') {
+        from = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+    } else {
+        from = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+    }
+
+    try {
+        const data = await api(`/entries/${instanceName}?from=${from}&to=${to}`);
+
+        // data can be array or single object
+        const entries = Array.isArray(data) ? data : [data];
+        let totalJoins = 0, totalFastExits = 0;
+
+        for (const e of entries) {
+            totalJoins += (e.organicJoins || 0);
+            totalFastExits += (e.fastExits || 0);
+        }
+
+        const netEntries = totalJoins - totalFastExits;
+        const cplReal = totalJoins > 0 && totalSpend > 0 ? totalSpend / totalJoins : 0;
+
+        setText('stat-entries', formatNumber(totalJoins));
+        setText('stat-fast-exits', formatNumber(totalFastExits));
+        setText('stat-net-entries', formatNumber(netEntries));
+        setText('stat-cpl-real', cplReal > 0 ? `R$ ${formatMoney(cplReal)}` : '--');
+
+        if (section) section.style.display = 'block';
+        _entriesData = { totalJoins, totalFastExits, netEntries, cplReal };
+    } catch (e) {
+        console.error('Entries error:', e);
+        if (section) section.style.display = 'none';
+    }
+}
 
 async function loadDashboardCampaigns(campaigns) {
     _dashboardCampaigns = campaigns;

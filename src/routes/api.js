@@ -321,6 +321,35 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         res.json({ ok: true });
     });
 
+    // ==================== SALESECOMMERCE API (real group entries) ====================
+    const SE_BASE = 'https://production.salesecommerce.com.br';
+    const SE_KEY = 'bot_dfe7011d0bcf2c3e4b26b6be9be125fc';
+
+    router.get('/entries/:instanceName', async (req, res) => {
+        try {
+            const { from, to } = req.query;
+            const instance = req.params.instanceName;
+            const url = `${SE_BASE}/api/v1/whatsappweb/cpl/metrics/summary?instanceName=${instance}&from=${from || ''}&to=${to || ''}`;
+            const resp = await fetch(url, { headers: { 'x-api-key': SE_KEY } });
+            const data = await resp.json();
+            res.json(data);
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
+    router.get('/entries', async (req, res) => {
+        try {
+            const { from, to } = req.query;
+            const url = `${SE_BASE}/api/v1/whatsappweb/cpl/metrics/summary?from=${from || ''}&to=${to || ''}`;
+            const resp = await fetch(url, { headers: { 'x-api-key': SE_KEY } });
+            const data = await resp.json();
+            res.json(data);
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
     // ==================== DASHBOARD METRICS ====================
     router.get('/dashboard/:account_id', async (req, res) => {
         try {
