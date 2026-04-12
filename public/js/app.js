@@ -325,7 +325,8 @@ async function loadRealEntries(totalSpend, metaLeads) {
         const totals = data.totals || data.instances?.[0] || data;
         const totalJoins = totals.organicJoins || 0;
         const totalFastExits = totals.fastExits || 0;
-        const validLeads = totals.validLeads || (totalJoins - totalFastExits);
+        // Formula correta: Leads Validos = Entradas - Saiu (simples, sem misterio)
+        const validLeads = totalJoins - totalFastExits;
         const netEntries = validLeads;
         const cplReal = validLeads > 0 && totalSpend > 0 ? totalSpend / validLeads : 0;
 
