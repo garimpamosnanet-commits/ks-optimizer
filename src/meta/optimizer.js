@@ -236,14 +236,47 @@ class Optimizer {
             }
 
             // Third pass: Scale rules for performing items
+            // Track duplications to prevent duplicate-spamming (max 1 per cycle)
+            let duplicationsThisCycle = 0;
+            const MAX_DUPLICATIONS_PER_CYCLE = 1;
+
             for (const adSet of adSetData) {
                 if (adSet.status !== 'ACTIVE') continue;
                 if (this._hasControlTag(adSet.name, CONTROL_TAGS.MANUAL)) continue;
                 if (this._hasControlTag(adSet.name, CONTROL_TAGS.NO_DUPLICATE)) continue;
 
+                // Skip if already being paused in this cycle
+                if (results.actions.some(a => a.object_id === adSet.id && a.type.includes('pause'))) continue;
+
                 const scaleAction = this._checkScaleRules(adSet, config, campaignMetrics, campaign);
                 if (scaleAction) {
+                    // Limit horizontal scale (duplication) to MAX per cycle
+                    if (scaleAction.type === 'scale_horizontal') {
+                        if (duplicationsThisCycle >= MAX_DUPLICATIONS_PER_CYCLE) continue;
+                        // Check if this ad set was already duplicated recently (last 24h)
+                        const recentLogs = db.getOptimizationLog({ campaign_id: campaignId, action: 'scale_horizontal', limit: 20 });
+                        const alreadyDuplicated = recentLogs.some(log => {
+                            const logTime = new Date(log.timestamp);
+                            const hoursAgo = (Date.now() - logTime) / (1000 * 60 * 60);
+                            return log.object_id === adSet.id && hoursAgo < 24;
+                        });
+                        if (alreadyDuplicated) continue;
+                        duplicationsThisCycle++;
+                    }
                     results.actions.push(scaleAction);
+                }
+            }
+
+            // Fourth pass: Budget optimization for underperformers (reduce before pausing)
+            for (const adSet of adSetData) {
+                if (adSet.status !== 'ACTIVE') continue;
+                if (this._hasControlTag(adSet.name, CONTROL_TAGS.MANUAL)) continue;
+                // Skip if already has an action in this cycle
+                if (results.actions.some(a => a.object_id === adSet.id)) continue;
+
+                const budgetAction = this._checkBudgetOptimization(adSet, config, campaignMetrics);
+                if (budgetAction) {
+                    results.actions.push(budgetAction);
                 }
             }
 
@@ -811,6 +844,11 @@ class Optimizer {
                 await this._executeScaleVertical(action);
                 break;
 
+            case 'budget_correction':
+            case 'budget_reduction':
+                await this._executeScaleVertical(action); // Same logic: update budget + suffix
+                break;
+
             default:
                 console.warn(`[Optimizer] Acao desconhecida: ${action.type}`);
         }
@@ -851,6 +889,113 @@ class Optimizer {
         // Add suffix to name
         const newName = this._cleanSuffixes(action.object_name) + action.suffix;
         await this.api.updateName(action.object_id, newName);
+    }
+
+    // ==================== BUDGET OPTIMIZATION (graduated response) ====================
+    _checkBudgetOptimization(adSet, config, campaignMetrics) {
+        const metrics = adSet.metrics || {};
+        const maxCPA = config.max_cpa;
+        const maxBudget = config.max_daily_budget_cbo;
+        const currentBudget = parseInt(adSet.daily_budget) / 100 || 0;
+
+        const m7d = metrics.last_7d;
+        const m3d = metrics.last_3d;
+        const mToday = metrics.today;
+
+        if (!m7d) return null;
+
+        // 1. BUDGET CORRECTION — if budget exceeds max CBO, reduce it
+        if (maxBudget > 0 && !config.unlimited_scale && currentBudget > maxBudget) {
+            return {
+                type: 'budget_correction',
+                object_type: 'adset',
+                object_id: adSet.id,
+                object_name: adSet.name,
+                suffix: SUFFIXES.CORRECTION_MAX_BUDGET,
+                reason: `Budget R$${currentBudget.toFixed(2)} acima do maximo CBO R$${maxBudget.toFixed(2)} - corrigindo`,
+                details: {
+                    current_budget: currentBudget,
+                    new_budget: maxBudget,
+                    action: 'reduce_budget'
+                }
+            };
+        }
+
+        // 2. REDUCE BUDGET for mediocre performers (CPA between 1x and 1.5x of max)
+        // Instead of pausing, give them a chance with less budget
+        if (m7d.cpa && m7d.cpa !== Infinity && m7d.cpa > maxCPA && m7d.cpa <= maxCPA * 1.5) {
+            const reduction = 0.20; // Reduce 20%
+            const newBudget = Math.max(currentBudget * (1 - reduction), maxCPA * 2); // Never below 2x CPA
+
+            if (newBudget < currentBudget) {
+                return {
+                    type: 'budget_reduction',
+                    object_type: 'adset',
+                    object_id: adSet.id,
+                    object_name: adSet.name,
+                    suffix: SUFFIXES.REDUCTION_LOW_PERF,
+                    reason: `CPA mediocre (R$${m7d.cpa.toFixed(2)} vs max R$${maxCPA.toFixed(2)}) - reduzindo budget 20% pra dar chance`,
+                    details: {
+                        current_budget: currentBudget,
+                        new_budget: Math.round(newBudget * 100) / 100,
+                        reduction_pct: 20,
+                        current_cpa: m7d.cpa,
+                        action: 'reduce_budget'
+                    }
+                };
+            }
+        }
+
+        // 3. REDUCE BUDGET if CPM is very high (audience saturation signal)
+        const avgCPM = campaignMetrics.last_7d?.cpm || 0;
+        if (m7d.cpm && avgCPM > 0 && m7d.cpm > avgCPM * 1.5 && m7d.cpm > 30) {
+            const reduction = 0.15;
+            const newBudget = Math.max(currentBudget * (1 - reduction), maxCPA * 2);
+
+            if (newBudget < currentBudget) {
+                return {
+                    type: 'budget_reduction',
+                    object_type: 'adset',
+                    object_id: adSet.id,
+                    object_name: adSet.name,
+                    suffix: SUFFIXES.REDUCTION_LOW_PERF,
+                    reason: `CPM alto (R$${m7d.cpm.toFixed(2)} vs media R$${avgCPM.toFixed(2)}) - audiencia saturada, reduzindo 15%`,
+                    details: {
+                        current_budget: currentBudget,
+                        new_budget: Math.round(newBudget * 100) / 100,
+                        reduction_pct: 15,
+                        current_cpm: m7d.cpm,
+                        avg_cpm: avgCPM,
+                        action: 'reduce_budget'
+                    }
+                };
+            }
+        }
+
+        // 4. REDUCE BUDGET if CPA today is bad (temporary reduction)
+        if (mToday && mToday.cpa && mToday.cpa !== Infinity && mToday.spend > maxCPA * 3 && mToday.cpa > maxCPA * 2) {
+            const reduction = 0.25;
+            const newBudget = Math.max(currentBudget * (1 - reduction), maxCPA * 2);
+
+            if (newBudget < currentBudget) {
+                return {
+                    type: 'budget_reduction',
+                    object_type: 'adset',
+                    object_id: adSet.id,
+                    object_name: adSet.name,
+                    suffix: SUFFIXES.REDUCTION_CPA_TODAY,
+                    reason: `CPA hoje alto (R$${mToday.cpa.toFixed(2)} vs max R$${maxCPA.toFixed(2)}) - reduzindo 25% pra proteger gasto`,
+                    details: {
+                        current_budget: currentBudget,
+                        new_budget: Math.round(newBudget * 100) / 100,
+                        reduction_pct: 25,
+                        action: 'reduce_budget'
+                    }
+                };
+            }
+        }
+
+        return null;
     }
 
     // ==================== HELPERS ====================
