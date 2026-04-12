@@ -474,11 +474,94 @@ function renderOptCard(campaign, isEnabled) {
                 }
             </div>
         </div>
+
+        <!-- LOG DE OTIMIZACOES DESTA CAMPANHA -->
+        ${isEnabled ? `
+        <div class="opt-card-log" id="opt-log-${campaignId}">
+            <div class="opt-card-log-header" onclick="toggleCardLog('${campaignId}')">
+                <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Historico de acoes
+                </span>
+                <svg class="opt-log-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg>
+            </div>
+            <div class="opt-card-log-body" id="opt-log-body-${campaignId}" style="display:none">
+                <div class="opt-card-log-loading">Carregando...</div>
+            </div>
+        </div>` : ''}
     </div>`;
 }
 
 function filterOptCampaigns() {
     renderOptCampaigns();
+}
+
+// ==================== CARD LOG (inline history) ====================
+async function toggleCardLog(campaignId) {
+    const body = document.getElementById(`opt-log-body-${campaignId}`);
+    const chevron = document.querySelector(`#opt-log-${campaignId} .opt-log-chevron`);
+
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+        await loadCardLog(campaignId);
+    } else {
+        body.style.display = 'none';
+        if (chevron) chevron.style.transform = '';
+    }
+}
+
+async function loadCardLog(campaignId) {
+    const body = document.getElementById(`opt-log-body-${campaignId}`);
+    if (!body) return;
+
+    body.innerHTML = '<div class="opt-card-log-loading"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Carregando historico...</div>';
+
+    try {
+        const logs = await api(`/optimization/log?campaign_id=${campaignId}&limit=30`);
+
+        if (!logs || logs.length === 0) {
+            body.innerHTML = '<div class="opt-card-log-empty">Nenhuma acao executada ainda. O optimizer analisara esta campanha no proximo ciclo (a cada 15 min).</div>';
+            return;
+        }
+
+        body.innerHTML = logs.map(log => {
+            const time = formatDateTime(log.timestamp);
+            const actionType = log.action.includes('pause') ? 'pause'
+                : log.action.includes('scale') ? 'scale'
+                : log.action.includes('reactivate') ? 'reactivate'
+                : 'other';
+
+            const actionLabel = log.action.includes('temp_pause') ? 'Pausa Temp'
+                : log.action.includes('pause') ? 'Pausou'
+                : log.action.includes('scale_horizontal') ? 'Duplicou'
+                : log.action.includes('scale') ? 'Escalou'
+                : log.action.includes('reactivate') ? 'Reativou'
+                : log.action.includes('reduction') ? 'Reduziu'
+                : log.action;
+
+            const icon = actionType === 'pause' ? '⏸'
+                : actionType === 'scale' ? '📈'
+                : actionType === 'reactivate' ? '▶️'
+                : '⚡';
+
+            const statusClass = log.success ? '' : 'failed';
+
+            return `
+            <div class="opt-card-log-entry ${statusClass}">
+                <div class="opt-log-entry-header">
+                    <span class="opt-log-entry-icon">${icon}</span>
+                    <span class="opt-log-entry-action ${actionType}">${esc(actionLabel)}</span>
+                    <span class="opt-log-entry-time">${time}</span>
+                </div>
+                <div class="opt-log-entry-name">${esc(log.object_name || '')}</div>
+                <div class="opt-log-entry-reason">${esc(log.reason || '')}</div>
+                ${!log.success ? `<div class="opt-log-entry-error">Erro: ${esc(log.error || 'desconhecido')}</div>` : ''}
+            </div>`;
+        }).join('');
+    } catch (e) {
+        body.innerHTML = `<div class="opt-card-log-empty">Erro ao carregar: ${esc(e.message)}</div>`;
+    }
 }
 
 function switchOptTab(tab) {
