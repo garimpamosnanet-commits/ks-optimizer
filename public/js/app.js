@@ -287,6 +287,12 @@ const ACCOUNT_INSTANCE_MAP = {
     'act_1139088090094699': 'dicas-da-ca',            // Debaldi
     'act_25573157989016239': 'promo-da-oportunidade', // Paloma
     'act_4036561509942696': 'promo-da-dinda',         // Dani Wal / Wal / Jose Camilo
+    'act_841869274830958': 'achadinhos-para-pobre',   // Jonathan
+    'act_2068647333624515': 'sabaziuscp',             // Mario Jr
+    'act_1949016345666216': 'dicas-da-ca',            // Carina
+    'act_2056603588205127': 'achadinhos-da-anna',     // Carol
+    'act_1393268055150638': 'achadinhos-da-tata',     // Tais
+    'act_1254904646649965': 'achadinhos-imbativel',   // Eber/Tiko
 };
 let _entriesData = null;
 
