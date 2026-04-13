@@ -504,7 +504,11 @@ function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTo
         </div>
         <div class="campaign-summary-metric">
             <div class="label">Budget/dia</div>
-            <div class="value">${budgetDisplay}</div>
+            <div class="value budget-cell">
+                ${budgetDisplay}
+                ${cpl > 0 && cpl <= 1.0 && budget > 0 ? '<span class="scale-signal" title="CPL excelente! Hora de escalar!">↑</span>' : ''}
+                ${budget > 0 && status === 'ACTIVE' ? `<button class="edit-budget-btn" title="Editar budget" onclick="editBudget(this, '${name}')">✎</button>` : ''}
+            </div>
         </div>
         <div class="campaign-summary-metric">
             <div class="label">Gasto</div>
@@ -1329,6 +1333,24 @@ function updateHeaderStatus(status) {
     if (text) {
         text.textContent = status === 'online' ? 'Online' : status === 'warning' ? 'Processando' : 'Offline';
     }
+}
+
+// ==================== EDIT BUDGET (inline from dashboard) ====================
+function editBudget(btn, name) {
+    // Show a prompt to change budget
+    const current = btn.parentElement.textContent.trim().replace('↑', '').replace('✎', '').replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+    const newVal = prompt(`Novo budget diario para:\n${name}\n\nAtual: R$${current}\nDigite o novo valor em reais:`, current);
+
+    if (newVal === null || newVal === '') return;
+
+    const parsed = parseFloat(newVal.replace(',', '.'));
+    if (isNaN(parsed) || parsed <= 0) {
+        showToast('Valor invalido', 'error');
+        return;
+    }
+
+    // We need the campaign/adset ID to update. For now, show toast with instruction
+    showToast(`Budget R$${parsed.toFixed(2)} — use a tela de Otimizacao pra alterar o budget via Meta API`, 'info');
 }
 
 // ==================== USER MENU ====================

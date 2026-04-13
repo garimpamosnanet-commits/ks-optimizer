@@ -743,6 +743,55 @@ body {
     font-weight: 600;
     color: var(--text-primary);
 }
+.budget-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+}
+
+.scale-signal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    font-size: 12px;
+    font-weight: 800;
+    animation: scaleArrowPulse 1.5s ease-in-out infinite;
+    cursor: help;
+}
+
+@keyframes scaleArrowPulse {
+    0%, 100% { transform: translateY(1px); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+    50% { transform: translateY(-3px); box-shadow: 0 0 8px 3px rgba(34, 197, 94, 0.3); }
+}
+
+.edit-budget-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    opacity: 0;
+}
+.campaign-summary-row:hover .edit-budget-btn { opacity: 1; }
+.edit-budget-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
 .campaign-summary-metric .value.good { color: var(--primary); }
 .campaign-summary-metric .value.bad { color: var(--danger); }
 .campaign-summary-metric .value.warning { color: var(--warning); }
