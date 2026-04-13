@@ -792,6 +792,50 @@ body {
     background: var(--primary-light);
 }
 
+.inline-budget-input {
+    width: 80px;
+    padding: 4px 8px;
+    border: 2px solid var(--primary);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    text-align: center;
+    outline: none;
+}
+
+.inline-budget-save {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 4px;
+    background: var(--primary);
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.inline-budget-save:hover { background: var(--primary-hover); }
+
+.inline-budget-cancel {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.inline-budget-cancel:hover { color: var(--danger); border-color: var(--danger); }
+
 .campaign-summary-metric .value.good { color: var(--primary); }
 .campaign-summary-metric .value.bad { color: var(--danger); }
 .campaign-summary-metric .value.warning { color: var(--warning); }

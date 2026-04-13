@@ -416,13 +416,12 @@ async function renderPerfCampaigns(container) {
                 ? (cpl > config.max_cpa * 1.3 ? 'bad' : cpl > config.max_cpa ? 'warning' : 'good')
                 : '';
             const budget = c.daily_budget ? parseInt(c.daily_budget) / 100 : (c.lifetime_budget ? parseInt(c.lifetime_budget) / 100 : 0);
-            rows.push({ name: c.name, spend, leads, cpl, ctr, freq, cplClass, budget, status: c.status });
+            rows.push({ id: c.id, name: c.name, spend, leads, cpl, ctr, freq, cplClass, budget, status: c.status });
         } catch (e) { /* skip */ }
     }
 
-    // Find top leads performer
     const maxLeads = Math.max(...rows.map(r => r.leads));
-    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, r.cplClass, r.budget, r.leads > 0 && r.leads === maxLeads, r.status)).join('');
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, r.cplClass, r.budget, r.leads > 0 && r.leads === maxLeads, r.status, r.id)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
@@ -460,11 +459,11 @@ async function renderPerfAdsets(container) {
         const freq = parseFloat(raw.frequency) || 0;
         const budget = budgetMap[raw.adset_id] || 0;
         const status = statusMap[raw.adset_id] || '';
-        return { name: raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, budget, status };
+        return { id: raw.adset_id, name: raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, budget, status };
     });
 
     const maxLeads = Math.max(...rows.map(r => r.leads));
-    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, '', r.budget, r.leads > 0 && r.leads === maxLeads, r.status)).join('');
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, '', r.budget, r.leads > 0 && r.leads === maxLeads, r.status, r.id)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
@@ -489,7 +488,7 @@ async function renderPerfAds(container) {
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
-function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTopLeads, status) {
+function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTopLeads, status, objectId) {
     const budgetDisplay = budget ? `R$${formatMoney(budget)}` : '--';
     const topClass = isTopLeads ? 'top-performer' : '';
     const statusBadge = status === 'ACTIVE' ? '<span class="status-active-badge">ATIVO</span>'
@@ -505,9 +504,9 @@ function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTo
         <div class="campaign-summary-metric">
             <div class="label">Budget/dia</div>
             <div class="value budget-cell">
-                ${budgetDisplay}
+                <span class="budget-value" id="bv-${objectId || ''}">${budgetDisplay}</span>
                 ${cpl > 0 && cpl <= 1.0 && budget > 0 ? '<span class="scale-signal" title="CPL excelente! Hora de escalar!">↑</span>' : ''}
-                ${budget > 0 && status === 'ACTIVE' ? `<button class="edit-budget-btn" title="Editar budget" onclick="editBudget(this, '${name}')">✎</button>` : ''}
+                ${objectId && budget > 0 && status === 'ACTIVE' ? `<button class="edit-budget-btn" title="Editar budget" onclick="startEditBudget('${objectId}', ${budget})">✎</button>` : ''}
             </div>
         </div>
         <div class="campaign-summary-metric">
@@ -1336,21 +1335,48 @@ function updateHeaderStatus(status) {
 }
 
 // ==================== EDIT BUDGET (inline from dashboard) ====================
-function editBudget(btn, name) {
-    // Show a prompt to change budget
-    const current = btn.parentElement.textContent.trim().replace('↑', '').replace('✎', '').replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-    const newVal = prompt(`Novo budget diario para:\n${name}\n\nAtual: R$${current}\nDigite o novo valor em reais:`, current);
+function startEditBudget(objectId, currentBudget) {
+    const el = document.getElementById(`bv-${objectId}`);
+    if (!el) return;
 
-    if (newVal === null || newVal === '') return;
+    // Replace text with inline input
+    el.innerHTML = `<input type="text" class="inline-budget-input" id="bi-${objectId}" value="${formatMoneyInput(currentBudget)}" onkeydown="if(event.key==='Enter')saveBudget('${objectId}');if(event.key==='Escape')cancelEditBudget('${objectId}',${currentBudget})" autofocus>
+    <button class="inline-budget-save" onclick="saveBudget('${objectId}')" title="Salvar">✓</button>
+    <button class="inline-budget-cancel" onclick="cancelEditBudget('${objectId}',${currentBudget})" title="Cancelar">✕</button>`;
 
-    const parsed = parseFloat(newVal.replace(',', '.'));
-    if (isNaN(parsed) || parsed <= 0) {
+    // Focus and select
+    setTimeout(() => {
+        const input = document.getElementById(`bi-${objectId}`);
+        if (input) { input.focus(); input.select(); }
+    }, 50);
+}
+
+function cancelEditBudget(objectId, currentBudget) {
+    const el = document.getElementById(`bv-${objectId}`);
+    if (el) el.textContent = `R$${formatMoney(currentBudget)}`;
+}
+
+async function saveBudget(objectId) {
+    const input = document.getElementById(`bi-${objectId}`);
+    if (!input) return;
+
+    const newVal = parseMoneyInput(input.value);
+    if (isNaN(newVal) || newVal <= 0) {
         showToast('Valor invalido', 'error');
         return;
     }
 
-    // We need the campaign/adset ID to update. For now, show toast with instruction
-    showToast(`Budget R$${parsed.toFixed(2)} — use a tela de Otimizacao pra alterar o budget via Meta API`, 'info');
+    const el = document.getElementById(`bv-${objectId}`);
+    if (el) el.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div>';
+
+    try {
+        await api(`/actions/budget/${objectId}`, 'POST', { budget: newVal });
+        if (el) el.textContent = `R$${formatMoney(newVal)}`;
+        showToast(`Budget atualizado: R$${formatMoney(newVal)}/dia`, 'success');
+    } catch (e) {
+        showToast(`Erro: ${e.message}`, 'error');
+        if (el) el.textContent = 'Erro';
+    }
 }
 
 // ==================== USER MENU ====================
