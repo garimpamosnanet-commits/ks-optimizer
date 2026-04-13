@@ -416,13 +416,13 @@ async function renderPerfCampaigns(container) {
                 ? (cpl > config.max_cpa * 1.3 ? 'bad' : cpl > config.max_cpa ? 'warning' : 'good')
                 : '';
             const budget = c.daily_budget ? parseInt(c.daily_budget) / 100 : (c.lifetime_budget ? parseInt(c.lifetime_budget) / 100 : 0);
-            rows.push({ name: c.name, spend, leads, cpl, ctr, freq, cplClass, budget });
+            rows.push({ name: c.name, spend, leads, cpl, ctr, freq, cplClass, budget, status: c.status });
         } catch (e) { /* skip */ }
     }
 
     // Find top leads performer
     const maxLeads = Math.max(...rows.map(r => r.leads));
-    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, r.cplClass, r.budget, r.leads > 0 && r.leads === maxLeads)).join('');
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, r.cplClass, r.budget, r.leads > 0 && r.leads === maxLeads, r.status)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
@@ -443,6 +443,14 @@ async function renderPerfAdsets(container) {
         }
     }
 
+    // Build status map from adsets
+    const statusMap = {};
+    if (Array.isArray(adsets)) {
+        for (const a of adsets) {
+            statusMap[a.id] = a.status;
+        }
+    }
+
     // Collect rows and find top
     const rows = insights.slice(0, 30).map(raw => {
         const spend = parseFloat(raw.spend) || 0;
@@ -451,11 +459,12 @@ async function renderPerfAdsets(container) {
         const ctr = parseFloat(raw.ctr) || 0;
         const freq = parseFloat(raw.frequency) || 0;
         const budget = budgetMap[raw.adset_id] || 0;
-        return { name: raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, budget };
+        const status = statusMap[raw.adset_id] || '';
+        return { name: raw.adset_name || raw.adset_id, spend, leads, cpl, ctr, freq, budget, status };
     });
 
     const maxLeads = Math.max(...rows.map(r => r.leads));
-    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, '', r.budget, r.leads > 0 && r.leads === maxLeads)).join('');
+    const html = rows.map(r => buildPerfRow(r.name, r.spend, r.leads, r.cpl, r.ctr, r.freq, '', r.budget, r.leads > 0 && r.leads === maxLeads, r.status)).join('');
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
@@ -480,13 +489,17 @@ async function renderPerfAds(container) {
     container.innerHTML = html || '<div class="empty-state"><h3>Sem dados</h3></div>';
 }
 
-function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTopLeads) {
+function buildPerfRow(name, spend, leads, cpl, ctr, freq, cplClass, budget, isTopLeads, status) {
     const budgetDisplay = budget ? `R$${formatMoney(budget)}` : '--';
     const topClass = isTopLeads ? 'top-performer' : '';
+    const statusBadge = status === 'ACTIVE' ? '<span class="status-active-badge">ATIVO</span>'
+        : status === 'PAUSED' ? '<span class="status-paused-badge">PAUSADO</span>'
+        : '';
     return `
-    <div class="campaign-summary-row ${topClass}">
+    <div class="campaign-summary-row ${topClass} ${status === 'PAUSED' ? 'row-paused' : ''}">
         <div class="campaign-summary-name" title="${esc(name)}">
             ${isTopLeads ? '<span class="top-badge">TOP</span>' : ''}
+            ${statusBadge}
             ${esc(name)}
         </div>
         <div class="campaign-summary-metric">
