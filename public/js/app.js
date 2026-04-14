@@ -336,12 +336,17 @@ async function loadRealEntries(totalSpend, metaLeads) {
         const netEntries = validLeads;
         const cplReal = validLeads > 0 && totalSpend > 0 ? totalSpend / validLeads : 0;
 
+        // Only show section if there are actual entries
+        if (totalJoins === 0) {
+            if (section) section.style.display = 'none';
+            return;
+        }
+
         setText('stat-leads-meta', formatNumber(metaLeads || 0));
         setText('stat-entries', formatNumber(totalJoins));
         setText('stat-fast-exits', formatNumber(totalFastExits));
         setText('stat-net-entries', formatNumber(validLeads));
         setText('stat-cpl-real', cplReal > 0 ? `R$ ${formatMoney(cplReal)}` : '--');
-        // Retencao 24h = validLeads / totalJoins (identico ao Pedro)
         const retention = totalJoins > 0 ? ((validLeads / totalJoins) * 100) : 0;
         setText('stat-conv-rate', retention > 0 ? `${retention.toFixed(1)}%` : '--');
 
