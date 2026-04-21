@@ -1616,12 +1616,8 @@ async function loadMasterPanel() {
                 } catch (e) { /* skip */ }
             }
 
-            // Check if account has active campaigns
-            let hasActiveCampaigns = false;
-            try {
-                const camps = await api(`/campaigns?account_id=${acc.id}&status=ACTIVE`);
-                hasActiveCampaigns = camps && camps.length > 0;
-            } catch(e) {}
+            // Active = has spend today (no extra API call needed)
+            const hasActiveCampaigns = spend > 0;
 
             return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, hasActiveCampaigns };
         } catch (e) { return null; }
