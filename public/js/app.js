@@ -1397,6 +1397,79 @@ async function saveBudget(objectId) {
     }
 }
 
+// ==================== CLIENT DETAIL MODAL (for print/screenshot) ====================
+function showClientDetail(name, data) {
+    // Remove existing modal
+    const existing = document.getElementById('client-detail-modal');
+    if (existing) existing.remove();
+
+    const r = typeof data === 'string' ? JSON.parse(data) : data;
+    const cplMetaColor = r.cpl <= 1.0 ? '#22c55e' : r.cpl <= 1.3 ? '#f59e0b' : '#ef4444';
+    const cplRealColor = r.cplReal <= 1.3 ? '#22c55e' : r.cplReal <= 1.8 ? '#f59e0b' : '#ef4444';
+    const dateLabel = _masterDate === 'yesterday' ? 'Ontem' : 'Hoje';
+
+    const modal = document.createElement('div');
+    modal.id = 'client-detail-modal';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="client-detail-card">
+            <div class="client-detail-header">
+                <div>
+                    <h2>${esc(name)}</h2>
+                    <p>Relatorio de Performance — ${dateLabel} (${new Date().toLocaleDateString('pt-BR')})</p>
+                </div>
+                <button class="btn btn-ghost" onclick="document.getElementById('client-detail-modal').remove()">✕</button>
+            </div>
+            <div class="client-detail-grid">
+                <div class="client-detail-metric">
+                    <div class="cdm-label">Investimento</div>
+                    <div class="cdm-value">R$ ${formatMoney(r.spend)}</div>
+                </div>
+                <div class="client-detail-metric">
+                    <div class="cdm-label">Leads Meta</div>
+                    <div class="cdm-value">${formatNumber(r.leads)}</div>
+                </div>
+                <div class="client-detail-metric cdm-green">
+                    <div class="cdm-label">Entradas Reais</div>
+                    <div class="cdm-value">${r.entries > 0 ? formatNumber(r.entries) : '--'}</div>
+                </div>
+                <div class="client-detail-metric cdm-red">
+                    <div class="cdm-label">Saiu &lt;24h</div>
+                    <div class="cdm-value">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</div>
+                </div>
+                <div class="client-detail-metric">
+                    <div class="cdm-label">Leads Validos</div>
+                    <div class="cdm-value">${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</div>
+                </div>
+                <div class="client-detail-metric">
+                    <div class="cdm-label">Membros</div>
+                    <div class="cdm-value">${r.members > 0 ? formatNumber(r.members) : '--'}</div>
+                </div>
+            </div>
+            <div class="client-detail-cpl-row">
+                <div class="client-detail-cpl">
+                    <div class="cdm-label">CPL Meta</div>
+                    <div class="cdm-value-big" style="color:${cplMetaColor}">R$ ${r.cpl > 0 ? formatMoney(r.cpl) : '--'}</div>
+                </div>
+                <div class="client-detail-cpl">
+                    <div class="cdm-label">CPL Real</div>
+                    <div class="cdm-value-big" style="color:${r.cplReal > 0 ? cplRealColor : 'var(--text-muted)'}">R$ ${r.cplReal > 0 ? formatMoney(r.cplReal) : '--'}</div>
+                </div>
+                <div class="client-detail-cpl">
+                    <div class="cdm-label">Retencao 24h</div>
+                    <div class="cdm-value-big" style="color:#22c55e">${r.retention > 0 ? r.retention.toFixed(1) + '%' : '--'}</div>
+                </div>
+            </div>
+            <div class="client-detail-footer">
+                <span>KS Digital Performance — ${new Date().toLocaleDateString('pt-BR')}</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
 // ==================== USER MENU ====================
 function toggleUserMenu() {
     const dd = document.getElementById('user-dropdown');
@@ -1424,11 +1497,11 @@ let _masterDate = 'last_7d';
 
 function setMasterDate(preset) {
     _masterDate = preset;
+    _masterFirstLoad = true;
     document.querySelectorAll('#master-date-filter .date-btn').forEach(b => {
         b.classList.toggle('active',
             (preset === 'today' && b.textContent === 'Hoje') ||
-            (preset === 'last_7d' && b.textContent === '7D') ||
-            (preset === 'last_30d' && b.textContent === '30D'));
+            (preset === 'yesterday' && b.textContent === 'Ontem'));
     });
     loadMasterPanel();
 }
@@ -1469,20 +1542,33 @@ async function loadMasterPanel() {
         updateEl.textContent = 'Atualizando...';
     }
 
-    // Date range for SalesEcommerce
+    // Date range
     const now = new Date();
-    let seFrom, seTo = now.toISOString().slice(0, 10);
-    if (_masterDate === 'today') seFrom = seTo;
-    else if (_masterDate === 'last_7d') seFrom = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
-    else seFrom = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+    let seFrom, seTo;
+    if (_masterDate === 'yesterday') {
+        const yesterday = new Date(now - 86400000);
+        seFrom = yesterday.toISOString().slice(0, 10);
+        seTo = seFrom;
+    } else {
+        seTo = now.toISOString().slice(0, 10);
+        seFrom = seTo;
+    }
 
-    let totalSpend = 0, totalLeads = 0, totalEntries = 0, activeCount = 0;
+    let totalSpend = 0, totalLeads = 0, totalEntries = 0, totalExits = 0, activeCount = 0;
     const rows = [];
 
     // Fetch ALL accounts in parallel (much faster)
     const fetchAccount = async (acc) => {
         try {
-            const insights = await api(`/insights/${acc.id}?date_preset=${_masterDate}&level=account`);
+            // Meta API: "yesterday" needs time_range, "today" is a valid preset
+            let insightsUrl;
+            if (_masterDate === 'yesterday') {
+                const yd = new Date(now - 86400000).toISOString().slice(0, 10);
+                insightsUrl = `/insights/${acc.id}?date_preset=yesterday&level=account`;
+            } else {
+                insightsUrl = `/insights/${acc.id}?date_preset=today&level=account`;
+            }
+            const insights = await api(insightsUrl);
             const raw = insights[0] || null;
             if (!raw) return null;
 
@@ -1509,6 +1595,14 @@ async function loadMasterPanel() {
                 } catch (e) { /* skip */ }
             }
 
+            // Fetch correct members count (campaign groups only, not all groups)
+            if (instanceName && entries > 0) {
+                try {
+                    const membersData = await api(`/members/${instanceName}`);
+                    members = membersData.totalMembers || 0;
+                } catch (e) { /* skip */ }
+            }
+
             return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, members };
         } catch (e) { return null; }
     };
@@ -1523,6 +1617,7 @@ async function loadMasterPanel() {
                 totalSpend += r.spend;
                 totalLeads += r.leads;
                 totalEntries += r.entries;
+                totalExits += r.fastExits;
                 activeCount++;
             }
         }
@@ -1546,6 +1641,7 @@ async function loadMasterPanel() {
     setText('master-total-leads', formatNumber(totalLeads));
     setText('master-total-entries', formatNumber(totalEntries));
     setText('master-avg-cpl', totalLeads > 0 ? `R$ ${formatMoney(totalSpend / totalLeads)}` : '--');
+    setText('master-total-exits', formatNumber(totalExits));
     setText('master-active-count', activeCount.toString());
 
     // Mark first load done + update timestamp
@@ -1709,6 +1805,9 @@ async function loadMasterPanel() {
             <td>${cplBarCell(r.cplReal, 1.3)}</td>
             <td>${retentionCell(r.retention)}</td>
             <td class="master-num-cell ${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
+            <td><button class="master-detail-btn" onclick="showClientDetail('${esc(clientName)}', ${JSON.stringify(r).replace(/'/g, "\\'")})" title="Ver detalhes">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button></td>
         </tr>`;
     }).join('');
 }

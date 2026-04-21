@@ -338,6 +338,29 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         }
     });
 
+    router.get('/members/:instanceName', async (req, res) => {
+        try {
+            const instance = req.params.instanceName;
+            const url = `${SE_BASE}/api/v1/whatsappweb/cpl/campaigngroups/${instance}`;
+            const resp = await fetch(url, { headers: { 'x-api-key': SE_KEY } });
+            const data = await resp.json();
+            // Sum participantCount from all campaign groups
+            let totalMembers = 0;
+            if (Array.isArray(data)) {
+                for (const campaign of data) {
+                    if (campaign.groups && Array.isArray(campaign.groups)) {
+                        for (const g of campaign.groups) {
+                            totalMembers += g.participantCount || 0;
+                        }
+                    }
+                }
+            }
+            res.json({ totalMembers, campaigns: Array.isArray(data) ? data.length : 0 });
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
     router.get('/entries', async (req, res) => {
         try {
             const { from, to } = req.query;
