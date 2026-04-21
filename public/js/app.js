@@ -1572,16 +1572,16 @@ async function loadMasterPanel() {
                 <span class="master-cpl-value">--</span>
             </div>`;
         }
-        const colorClass = value <= maxGood ? 'master-cpl-good'
-            : value <= maxGood * 1.5 ? 'master-cpl-warn'
-            : 'master-cpl-bad';
-        // Bar width: 100% at CPL=0, 50% at CPL=maxGood, 10% at CPL=2*maxGood+
-        const pct = Math.max(5, Math.min(100, Math.round((1 - (value / (maxGood * 2.5))) * 100)));
-        return `<div class="master-cpl-cell ${colorClass}">
-            <span class="master-cpl-value">R$ ${formatMoney(value)}</span>
-            <div class="master-cpl-bar-track">
-                <div class="master-cpl-bar-fill" style="width:${pct}%"></div>
-            </div>
+        const color = value <= maxGood ? '#22c55e' : value <= maxGood * 1.5 ? '#f59e0b' : '#ef4444';
+        // 6 blocks: lower CPL = more filled blocks
+        const ratio = Math.max(0, 1 - (value / (maxGood * 2.5)));
+        const filled = Math.max(1, Math.min(6, Math.round(ratio * 6)));
+        const blocks = Array.from({length: 6}, (_, i) =>
+            `<span class="cpl-block" style="background:${i < filled ? color : 'var(--border)'}"></span>`
+        ).join('');
+        return `<div class="master-cpl-cell">
+            <span class="master-cpl-value" style="color:${color}">R$ ${formatMoney(value)}</span>
+            <div class="cpl-blocks">${blocks}</div>
         </div>`;
     }
 
@@ -1618,6 +1618,36 @@ async function loadMasterPanel() {
     let rankIdx = 0;
     tbody.innerHTML = filteredRows.map((r, i) => {
         const clientName = CLIENT_NAMES[r.id] || r.name.replace(/\[.*?\]/g, '').replace(/ - ATIV[AO]$/i, '').replace(/^ - /, '').trim();
+
+        // Photo mapping
+        const CLIENT_PHOTOS = {
+            'act_343078820487125': 'garimshopee',
+            'act_4260177337539586': 'garimshopee',
+            'act_700924378146370': 'achadinhosdali',
+            'act_1319994062238404': 'achadinhosentreecompre',
+            'act_1220899122923055': 'achadossecretos',
+            'act_321696970444959': 'achadossecretos',
+            'act_1239747731524637': 'promocoesdajenni',
+            'act_1720931478425787': 'achadinhosimbativeis',
+            'act_1916013155820452': 'achadinhosdogilioli',
+            'act_339589001914046': 'achadinhosdadri',
+            'act_829642158833837': 'achadinhosdaanna',
+            'act_840398074413162': 'achadinhosborogoddo',
+            'act_6745107755555484': 'zeofertas',
+            'act_1843590456346828': 'garimpodemamae',
+            'act_25573157989016239': 'promocaodeamiga',
+            'act_4036561509942696': 'promodadinda',
+            'act_841869274830958': 'achadinhosparapobres2',
+            'act_2056603588205127': 'promodaoportunidade',
+            'act_338281941994189': 'promocaododia',
+            'act_1254904646649965': 'achadinhosimbativeis',
+            'act_2236910550052314': 'achadinhosdaanna',
+            'act_1139088090094699': 'dicasdaca',
+        };
+        const photoFile = CLIENT_PHOTOS[r.id];
+        const photoHtml = photoFile
+            ? `<img src="/photos/${photoFile}.jpg" class="master-client-photo" alt="${esc(clientName)}">`
+            : `<div class="master-client-initial">${clientName.charAt(0)}</div>`;
         const hasOptActive = allConfigs.some(c => c.account_id === r.id && c.enabled);
         rankIdx++;
         const rankClass = rankIdx === 1 ? 'master-rank-gold'
@@ -1629,11 +1659,14 @@ async function loadMasterPanel() {
             <td class="master-rank-cell ${rankClass}">${rankIdx}</td>
             <td>
                 <div class="master-client-cell">
-                    <span class="master-client-name">${esc(clientName)}</span>
-                    ${hasOptActive ? `<span class="master-ks-badge">
-                        <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-                        KS ON
-                    </span>` : ''}
+                    ${photoHtml}
+                    <div>
+                        <span class="master-client-name">${esc(clientName)}</span>
+                        ${hasOptActive ? `<span class="master-ks-badge">
+                            <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                            KS ON
+                        </span>` : ''}
+                    </div>
                 </div>
             </td>
             <td class="master-num-cell val-spend">R$ ${formatMoney(r.spend)}</td>

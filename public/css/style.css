@@ -1983,6 +1983,7 @@ body {
     color: var(--text-primary);
     transition: background 0.15s ease;
     vertical-align: middle;
+    font-size: 15px;
 }
 
 .master-table tbody tr:last-child td { border-bottom: none; }
@@ -2016,13 +2017,36 @@ body {
 .master-client-cell {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 130px;
+    gap: 10px;
+    min-width: 160px;
+}
+
+.master-client-photo {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+}
+
+.master-client-initial {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-light);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
 }
 
 .master-client-name {
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: 15px;
     color: var(--text-primary);
     letter-spacing: -0.1px;
 }
@@ -2075,41 +2099,30 @@ body {
     font-weight: 400;
 }
 
-/* CPL bar cell — new horizontal bar design */
+/* CPL blocks cell — Pedro style */
 .master-cpl-cell {
-    min-width: 130px;
+    min-width: 120px;
 }
 
 .master-cpl-value {
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     margin-bottom: 5px;
     display: block;
 }
 
-.master-cpl-bar-track {
-    height: 5px;
-    background: var(--border);
-    border-radius: 99px;
-    overflow: hidden;
-    width: 100%;
+.cpl-blocks {
+    display: flex;
+    gap: 3px;
 }
 
-.master-cpl-bar-fill {
-    height: 100%;
-    border-radius: 99px;
-    transition: width 0.6s ease;
+.cpl-block {
+    width: 14px;
+    height: 11px;
+    border-radius: 2px;
+    display: inline-block;
 }
-
-.master-cpl-good { color: #16a34a; }
-.master-cpl-good .master-cpl-bar-fill { background: linear-gradient(90deg, #22c55e, #16a34a); }
-
-.master-cpl-warn { color: #d97706; }
-.master-cpl-warn .master-cpl-bar-fill { background: linear-gradient(90deg, #f59e0b, #d97706); }
-
-.master-cpl-bad { color: #dc2626; }
-.master-cpl-bad .master-cpl-bar-fill { background: linear-gradient(90deg, #ef4444, #dc2626); }
 
 .master-cpl-none { color: var(--text-muted); }
 
