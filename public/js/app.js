@@ -1810,9 +1810,7 @@ async function loadMasterPanel() {
                             <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
                             KS ON
                         </span>` : ''}
-                        ${r.hasActiveCampaigns
-                            ? '<span class="master-campaign-badge active">Campanhas Ativas</span>'
-                            : '<span class="master-campaign-badge paused">Campanhas Pausadas</span>'}
+                        <span class="master-campaign-badge" id="camp-status-${r.id.replace('act_','')}" style="opacity:0.5">verificando...</span>
                     </div>
                 </div>
             </td>
@@ -1830,6 +1828,29 @@ async function loadMasterPanel() {
             </button></td>
         </tr>`;
     }).join('');
+
+    // Check real campaign status sequentially (after table renders)
+    checkCampaignStatuses(filteredRows);
+}
+
+async function checkCampaignStatuses(rows) {
+    for (const r of rows) {
+        const el = document.getElementById(`camp-status-${r.id.replace('act_','')}`);
+        if (!el) continue;
+        try {
+            const camps = await api(`/campaigns?account_id=${r.id}&status=ACTIVE`);
+            const isActive = camps && camps.length > 0;
+            el.className = `master-campaign-badge ${isActive ? 'active' : 'paused'}`;
+            el.textContent = isActive ? 'Campanhas Ativas' : 'Campanhas Pausadas';
+            el.style.opacity = '1';
+        } catch (e) {
+            el.textContent = r.spend > 0 ? 'Ativas' : 'Pausadas';
+            el.className = `master-campaign-badge ${r.spend > 0 ? 'active' : 'paused'}`;
+            el.style.opacity = '1';
+        }
+        // Small delay to avoid rate limit
+        await new Promise(resolve => setTimeout(resolve, 1500));
+    }
 }
 
 // ==================== LOGOUT ====================
