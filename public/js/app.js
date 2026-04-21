@@ -181,6 +181,13 @@ function navigateTo(page) {
     const accountBar = document.querySelector('.account-bar');
     if (accountBar) accountBar.style.display = page === 'master' ? 'none' : 'flex';
 
+    // Stop master auto-refresh when leaving the page
+    if (page !== 'master' && _masterAutoRefresh) {
+        clearInterval(_masterAutoRefresh);
+        _masterAutoRefresh = null;
+        _masterFirstLoad = true;
+    }
+
     // Load page-specific data
     if (page === 'master') loadMasterPanel();
     if (page === 'dashboard') loadDashboard();
@@ -1426,20 +1433,41 @@ function setMasterDate(preset) {
     loadMasterPanel();
 }
 
+let _masterAutoRefresh = null;
+let _masterFirstLoad = true;
+
 async function loadMasterPanel() {
     const tbody = document.getElementById('master-table-body');
     if (!tbody) return;
 
-    // Show skeleton loading
-    tbody.innerHTML = `<tr><td colspan="11" class="master-empty-state">
-        <div class="master-skeleton-rows">
-            <div class="master-skeleton-row"></div>
-            <div class="master-skeleton-row"></div>
-            <div class="master-skeleton-row"></div>
-            <div class="master-skeleton-row"></div>
-            <div class="master-skeleton-row"></div>
-        </div>
-    </td></tr>`;
+    // Auto-refresh every 30 seconds (real-time feel)
+    if (!_masterAutoRefresh) {
+        _masterAutoRefresh = setInterval(() => {
+            if (_currentPage === 'master') {
+                _masterFirstLoad = false;
+                loadMasterPanel();
+            }
+        }, 30000);
+    }
+
+    // Show skeleton only on first load (silent refresh after)
+    if (_masterFirstLoad) {
+        tbody.innerHTML = `<tr><td colspan="11" class="master-empty-state">
+            <div class="master-skeleton-rows">
+                <div class="master-skeleton-row"></div>
+                <div class="master-skeleton-row"></div>
+                <div class="master-skeleton-row"></div>
+                <div class="master-skeleton-row"></div>
+                <div class="master-skeleton-row"></div>
+            </div>
+        </td></tr>`;
+    }
+
+    // Show subtle refresh indicator
+    const updateEl = document.getElementById('master-last-update');
+    if (updateEl && !_masterFirstLoad) {
+        updateEl.textContent = 'Atualizando...';
+    }
 
     // Date range for SalesEcommerce
     const now = new Date();
@@ -1498,14 +1526,16 @@ async function loadMasterPanel() {
                 activeCount++;
             }
         }
-        // Update skeleton progress
-        tbody.innerHTML = `<tr><td colspan="11" class="master-empty-state">
-            <div class="master-skeleton-rows">
-                ${Array.from({length: Math.max(3, rows.length || 3)}, (_, i) =>
-                    `<div class="master-skeleton-row" style="animation-delay:${i*0.05}s"></div>`
-                ).join('')}
-            </div>
-        </td></tr>`;
+        // Update skeleton progress (only on first load)
+        if (_masterFirstLoad) {
+            tbody.innerHTML = `<tr><td colspan="11" class="master-empty-state">
+                <div class="master-skeleton-rows">
+                    ${Array.from({length: Math.max(3, rows.length || 3)}, (_, i) =>
+                        `<div class="master-skeleton-row" style="animation-delay:${i*0.05}s"></div>`
+                    ).join('')}
+                </div>
+            </td></tr>`;
+        }
     }
 
     // Sort by spend descending
@@ -1518,11 +1548,12 @@ async function loadMasterPanel() {
     setText('master-avg-cpl', totalLeads > 0 ? `R$ ${formatMoney(totalSpend / totalLeads)}` : '--');
     setText('master-active-count', activeCount.toString());
 
-    // Update timestamp
+    // Mark first load done + update timestamp
+    _masterFirstLoad = false;
     const now2 = new Date();
     const updatedEl = document.getElementById('master-updated-at');
     if (updatedEl) {
-        updatedEl.textContent = `Atualizado as ${now2.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        updatedEl.textContent = `Atualizado as ${now2.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · auto-refresh 30s`;
     }
 
     // Render table
