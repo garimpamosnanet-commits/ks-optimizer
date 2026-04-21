@@ -177,6 +177,10 @@ function navigateTo(page) {
         el.classList.toggle('active', el.id === `page-${page}`);
     });
 
+    // Hide account bar on master page (shows ALL accounts)
+    const accountBar = document.querySelector('.account-bar');
+    if (accountBar) accountBar.style.display = page === 'master' ? 'none' : 'flex';
+
     // Load page-specific data
     if (page === 'master') loadMasterPanel();
     if (page === 'dashboard') loadDashboard();
@@ -1424,7 +1428,7 @@ function setMasterDate(preset) {
 async function loadMasterPanel() {
     const tbody = document.getElementById('master-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="12" class="loading-state"><div class="spinner"></div> Carregando todos os clientes...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="loading-state"><div class="spinner"></div> Carregando todos os clientes...</td></tr>';
 
     // Date range for SalesEcommerce
     const now = new Date();
@@ -1436,23 +1440,23 @@ async function loadMasterPanel() {
     let totalSpend = 0, totalLeads = 0, totalEntries = 0, activeCount = 0;
     const rows = [];
 
-    for (const acc of _accounts) {
+    // Fetch ALL accounts in parallel (much faster)
+    const fetchAccount = async (acc) => {
         try {
-            // Fetch Meta insights
             const insights = await api(`/insights/${acc.id}?date_preset=${_masterDate}&level=account`);
             const raw = insights[0] || null;
-            if (!raw || parseFloat(raw.spend) === 0) continue; // Skip accounts with no spend
+            if (!raw) return null;
 
             const spend = parseFloat(raw.spend) || 0;
             const leads = extractLeads(raw.actions);
+            if (spend === 0 && leads === 0) return null; // Skip empty accounts
+
             const cpl = leads > 0 ? spend / leads : 0;
             const ctr = parseFloat(raw.ctr) || 0;
             const cpm = parseFloat(raw.cpm) || 0;
 
-            // Fetch real entries
-            const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
             let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0;
-
+            const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
             if (instanceName) {
                 try {
                     const seData = await api(`/entries/${instanceName}?from=${seFrom}&to=${seTo}`);
@@ -1462,18 +1466,28 @@ async function loadMasterPanel() {
                     validLeads = entries - fastExits;
                     cplReal = validLeads > 0 ? spend / validLeads : 0;
                     retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
-                } catch (e) { /* no entries data */ }
+                } catch (e) { /* skip */ }
             }
 
-            totalSpend += spend;
-            totalLeads += leads;
-            totalEntries += entries;
-            activeCount++;
+            return { name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm };
+        } catch (e) { return null; }
+    };
 
-            rows.push({ name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm });
-        } catch (e) {
-            // Skip accounts with errors
+    // Run 5 at a time for speed without hitting rate limits
+    for (let i = 0; i < _accounts.length; i += 5) {
+        const batch = _accounts.slice(i, i + 5);
+        const results = await Promise.all(batch.map(fetchAccount));
+        for (const r of results) {
+            if (r) {
+                rows.push(r);
+                totalSpend += r.spend;
+                totalLeads += r.leads;
+                totalEntries += r.entries;
+                activeCount++;
+            }
         }
+        // Update progress
+        tbody.innerHTML = `<tr><td colspan="10" class="loading-state"><div class="spinner"></div> Carregando... ${rows.length} clientes encontrados</td></tr>`;
     }
 
     // Sort by spend descending
@@ -1488,35 +1502,39 @@ async function loadMasterPanel() {
 
     // Render table
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="loading-state">Nenhuma conta com gasto no periodo</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="loading-state">Nenhuma conta com gasto no periodo</td></tr>';
         return;
     }
 
     tbody.innerHTML = rows.map(r => {
-        // CPL bar: max 2.0 = 100%, green if <1.0, yellow 1.0-1.5, red >1.5
-        const cplPct = r.cpl > 0 ? Math.min((1 - (r.cpl / 2.0)) * 100, 100) : 0;
-        const cplColor = r.cpl <= 1.0 ? '#22c55e' : r.cpl <= 1.5 ? '#f59e0b' : '#ef4444';
-        const cplRealPct = r.cplReal > 0 ? Math.min((1 - (r.cplReal / 3.0)) * 100, 100) : 0;
-        const cplRealColor = r.cplReal <= 1.5 ? '#22c55e' : r.cplReal <= 2.0 ? '#f59e0b' : '#ef4444';
+        // Extract clean client name (remove account info like "[CA 05] - " and " - ATIVA")
+        let clientName = r.name;
+        const match = clientName.match(/\[([^\]]+)\]/);
+        if (match) clientName = match[1];
+        clientName = clientName.replace(/ - ATIV[AO]$/i, '').replace(/ - $/,'').trim();
+
+        // CPL bars
+        const cplColor = r.cpl <= 1.0 ? '#22c55e' : r.cpl <= 1.3 ? '#f59e0b' : '#ef4444';
+        const cplPct = r.cpl > 0 ? Math.min(Math.max((2.0 - r.cpl) / 2.0 * 100, 10), 100) : 0;
+        const cplRealColor = r.cplReal <= 1.3 ? '#22c55e' : r.cplReal <= 1.8 ? '#f59e0b' : '#ef4444';
+        const cplRealPct = r.cplReal > 0 ? Math.min(Math.max((3.0 - r.cplReal) / 3.0 * 100, 10), 100) : 0;
 
         return `<tr>
-            <td class="client-name" title="${esc(r.name)}">${esc(r.name)}</td>
-            <td><span class="master-status-active">ATIVO</span></td>
+            <td class="client-name" title="${esc(r.name)}">${esc(clientName)}</td>
             <td>R$${formatMoney(r.spend)}</td>
             <td><strong>${formatNumber(r.leads)}</strong></td>
-            <td>
-                <div class="cpl-cell">
-                    <span style="color:${cplColor};font-weight:700">${r.cpl > 0 ? 'R$ ' + formatMoney(r.cpl) : '--'}</span>
-                    ${r.cpl > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${Math.max(cplPct, 8)}%;background:${cplColor}"></div></div>` : ''}
-                </div>
-            </td>
             <td class="${r.entries > 0 ? 'val-good' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
-            <td class="${r.fastExits > 0 ? 'val-bad' : 'val-muted'}">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</td>
             <td>${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</td>
             <td>
                 <div class="cpl-cell">
-                    <span style="color:${r.cplReal > 0 ? cplRealColor : 'var(--text-muted)'};font-weight:700">${r.cplReal > 0 ? 'R$ ' + formatMoney(r.cplReal) : '--'}</span>
-                    ${r.cplReal > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${Math.max(cplRealPct, 8)}%;background:${cplRealColor}"></div></div>` : ''}
+                    <span style="color:${cplColor};font-weight:700">${r.cpl > 0 ? 'R$' + formatMoney(r.cpl) : '--'}</span>
+                    ${r.cpl > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${cplPct}%;background:${cplColor}"></div></div>` : ''}
+                </div>
+            </td>
+            <td>
+                <div class="cpl-cell">
+                    <span style="color:${r.cplReal > 0 ? cplRealColor : 'var(--text-muted)'};font-weight:700">${r.cplReal > 0 ? 'R$' + formatMoney(r.cplReal) : '--'}</span>
+                    ${r.cplReal > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${cplRealPct}%;background:${cplRealColor}"></div></div>` : ''}
                 </div>
             </td>
             <td>${r.retention > 0 ? r.retention.toFixed(1) + '%' : '--'}</td>
