@@ -1829,6 +1829,20 @@ body {
 .val-spend { font-weight: 600; }
 .val-leads { font-size: 15px; }
 
+.master-ks-badge {
+    display: inline-flex;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--primary);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    margin-left: 6px;
+    letter-spacing: 0.3px;
+    vertical-align: middle;
+    animation: optPulseGlow 2s ease-in-out infinite;
+}
+
 .master-status-active {
     display: inline-flex; padding: 2px 8px; border-radius: 4px;
     background: var(--primary-light); color: var(--primary); font-size: 10px; font-weight: 700;

@@ -1470,7 +1470,7 @@ async function loadMasterPanel() {
                 } catch (e) { /* skip */ }
             }
 
-            return { name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, members };
+            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, members };
         } catch (e) { return null; }
     };
 
@@ -1554,12 +1554,19 @@ async function loadMasterPanel() {
         </div>`;
     }
 
+    // Check which accounts have optimization enabled
+    let allConfigs = [];
+    try { allConfigs = await api('/optimization/configs'); } catch(e) {}
+
     tbody.innerHTML = rows.map(r => {
-        const accObj = _accounts.find(a => a.name === r.name);
-        const clientName = (accObj && CLIENT_NAMES[accObj.id]) || r.name.replace(/\[.*?\]/g, '').replace(/ - ATIV[AO]$/i, '').replace(/^ - /, '').trim();
+        const clientName = CLIENT_NAMES[r.id] || r.name.replace(/\[.*?\]/g, '').replace(/ - ATIV[AO]$/i, '').replace(/^ - /, '').trim();
+        const hasOptActive = allConfigs.some(c => c.account_id === r.id && c.enabled);
 
         return `<tr>
-            <td class="client-name-cell">${esc(clientName)}</td>
+            <td class="client-name-cell">
+                ${clientName}
+                ${hasOptActive ? '<span class="master-ks-badge">KS ON</span>' : ''}
+            </td>
             <td class="val-spend">R$ ${formatMoney(r.spend)}</td>
             <td class="val-leads"><strong>${formatNumber(r.leads)}</strong></td>
             <td class="${r.entries > 0 ? 'val-good' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
