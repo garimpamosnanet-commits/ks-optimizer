@@ -1748,6 +1748,65 @@ body {
     margin-top: 4px;
 }
 
+/* ==================== MASTER TABLE ==================== */
+.master-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+}
+
+.master-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.master-table thead th {
+    background: var(--bg-input);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 0;
+}
+
+.master-table tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-primary);
+}
+
+.master-table tbody tr:hover { background: var(--bg-hover); }
+
+.master-table .client-name {
+    font-weight: 600;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.master-table .val-good { color: var(--primary); font-weight: 700; }
+.master-table .val-bad { color: var(--danger); font-weight: 600; }
+.master-table .val-warn { color: var(--warning); font-weight: 600; }
+.master-table .val-muted { color: var(--text-muted); }
+
+.master-status-active {
+    display: inline-flex; padding: 2px 8px; border-radius: 4px;
+    background: var(--primary-light); color: var(--primary); font-size: 10px; font-weight: 700;
+}
+
+.master-status-inactive {
+    display: inline-flex; padding: 2px 8px; border-radius: 4px;
+    background: var(--bg-hover); color: var(--text-muted); font-size: 10px; font-weight: 700;
+}
+
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
     .sidebar { transform: translateX(-100%); }

@@ -87,6 +87,10 @@
                 <nav class="sidebar-nav">
                     <div class="sidebar-section">
                         <div class="sidebar-section-title">Funcionalidades</div>
+                        <a class="sidebar-link" data-page="master" onclick="navigateTo('master')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                            Painel Master
+                        </a>
                         <a class="sidebar-link active" data-page="dashboard" onclick="navigateTo('dashboard')">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
                             Dashboard
@@ -160,6 +164,76 @@
                             <span id="status-text">Online</span>
                         </span>
                         <span class="account-bar-limit" id="account-limit"></span>
+                    </div>
+                </div>
+
+                <!-- PAGE: MASTER PANEL -->
+                <div class="page" id="page-master">
+                    <div class="breadcrumb">
+                        <span>Funcionalidades</span> / <a>Painel Master</a> /
+                    </div>
+                    <div class="page-header">
+                        <h2>Painel Master — Todos os Clientes</h2>
+                        <div class="page-header-actions">
+                            <div class="date-filter" id="master-date-filter">
+                                <button class="date-btn" onclick="setMasterDate('today')">Hoje</button>
+                                <button class="date-btn active" onclick="setMasterDate('last_7d')">7D</button>
+                                <button class="date-btn" onclick="setMasterDate('last_30d')">30D</button>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="loadMasterPanel()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                                Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Master Stats -->
+                    <div class="metrics-grid" style="margin-bottom:20px">
+                        <div class="metric-card card-blue">
+                            <div class="metric-label">INVESTIMENTO TOTAL</div>
+                            <div class="metric-value" id="master-total-spend">--</div>
+                        </div>
+                        <div class="metric-card card-green">
+                            <div class="metric-label">LEADS TOTAL</div>
+                            <div class="metric-value" id="master-total-leads">--</div>
+                        </div>
+                        <div class="metric-card card-green">
+                            <div class="metric-label">ENTRADAS REAIS TOTAL</div>
+                            <div class="metric-value" id="master-total-entries">--</div>
+                        </div>
+                        <div class="metric-card card-orange">
+                            <div class="metric-label">CPL MEDIO META</div>
+                            <div class="metric-value" id="master-avg-cpl">--</div>
+                        </div>
+                        <div class="metric-card card-purple">
+                            <div class="metric-label">CONTAS ATIVAS</div>
+                            <div class="metric-value" id="master-active-count">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Master Table -->
+                    <div class="master-table-wrapper">
+                        <table class="master-table" id="master-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente / Conta</th>
+                                    <th>Status</th>
+                                    <th>Investimento</th>
+                                    <th>Leads Meta</th>
+                                    <th>CPL Meta</th>
+                                    <th>Entradas Reais</th>
+                                    <th>Saiu &lt;24h</th>
+                                    <th>Leads Validos</th>
+                                    <th>CPL Real</th>
+                                    <th>Retencao</th>
+                                    <th>CTR</th>
+                                    <th>CPM</th>
+                                </tr>
+                            </thead>
+                            <tbody id="master-table-body">
+                                <tr><td colspan="12" class="loading-state"><div class="spinner"></div> Clique em Atualizar para carregar</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

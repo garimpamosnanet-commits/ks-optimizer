@@ -178,6 +178,7 @@ function navigateTo(page) {
     });
 
     // Load page-specific data
+    if (page === 'master') loadMasterPanel();
     if (page === 'dashboard') loadDashboard();
     if (page === 'optimization') loadOptimizationPage();
     if (page === 'log') loadOptLog();
@@ -1405,6 +1406,111 @@ document.addEventListener('click', (e) => {
         if (dd) dd.style.display = 'none';
     }
 });
+
+// ==================== MASTER PANEL ====================
+let _masterDate = 'last_7d';
+
+function setMasterDate(preset) {
+    _masterDate = preset;
+    document.querySelectorAll('#master-date-filter .date-btn').forEach(b => {
+        b.classList.toggle('active',
+            (preset === 'today' && b.textContent === 'Hoje') ||
+            (preset === 'last_7d' && b.textContent === '7D') ||
+            (preset === 'last_30d' && b.textContent === '30D'));
+    });
+    loadMasterPanel();
+}
+
+async function loadMasterPanel() {
+    const tbody = document.getElementById('master-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="12" class="loading-state"><div class="spinner"></div> Carregando todos os clientes...</td></tr>';
+
+    // Date range for SalesEcommerce
+    const now = new Date();
+    let seFrom, seTo = now.toISOString().slice(0, 10);
+    if (_masterDate === 'today') seFrom = seTo;
+    else if (_masterDate === 'last_7d') seFrom = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+    else seFrom = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+
+    let totalSpend = 0, totalLeads = 0, totalEntries = 0, activeCount = 0;
+    const rows = [];
+
+    for (const acc of _accounts) {
+        try {
+            // Fetch Meta insights
+            const insights = await api(`/insights/${acc.id}?date_preset=${_masterDate}&level=account`);
+            const raw = insights[0] || null;
+            if (!raw || parseFloat(raw.spend) === 0) continue; // Skip accounts with no spend
+
+            const spend = parseFloat(raw.spend) || 0;
+            const leads = extractLeads(raw.actions);
+            const cpl = leads > 0 ? spend / leads : 0;
+            const ctr = parseFloat(raw.ctr) || 0;
+            const cpm = parseFloat(raw.cpm) || 0;
+
+            // Fetch real entries
+            const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
+            let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0;
+
+            if (instanceName) {
+                try {
+                    const seData = await api(`/entries/${instanceName}?from=${seFrom}&to=${seTo}`);
+                    const totals = seData.totals || seData.instances?.[0] || {};
+                    entries = totals.organicJoins || 0;
+                    fastExits = totals.fastExits || 0;
+                    validLeads = entries - fastExits;
+                    cplReal = validLeads > 0 ? spend / validLeads : 0;
+                    retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
+                } catch (e) { /* no entries data */ }
+            }
+
+            totalSpend += spend;
+            totalLeads += leads;
+            totalEntries += entries;
+            activeCount++;
+
+            rows.push({ name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm });
+        } catch (e) {
+            // Skip accounts with errors
+        }
+    }
+
+    // Sort by spend descending
+    rows.sort((a, b) => b.spend - a.spend);
+
+    // Update totals
+    setText('master-total-spend', `R$ ${formatMoney(totalSpend)}`);
+    setText('master-total-leads', formatNumber(totalLeads));
+    setText('master-total-entries', formatNumber(totalEntries));
+    setText('master-avg-cpl', totalLeads > 0 ? `R$ ${formatMoney(totalSpend / totalLeads)}` : '--');
+    setText('master-active-count', activeCount.toString());
+
+    // Render table
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" class="loading-state">Nenhuma conta com gasto no periodo</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rows.map(r => {
+        const cplClass = r.cpl > 0 && r.cpl <= 1.0 ? 'val-good' : r.cpl > 1.5 ? 'val-bad' : '';
+        const cplRealClass = r.cplReal > 0 && r.cplReal <= 1.5 ? 'val-good' : r.cplReal > 2.5 ? 'val-bad' : '';
+        return `<tr>
+            <td class="client-name" title="${esc(r.name)}">${esc(r.name)}</td>
+            <td><span class="master-status-active">ATIVO</span></td>
+            <td>R$${formatMoney(r.spend)}</td>
+            <td><strong>${formatNumber(r.leads)}</strong></td>
+            <td class="${cplClass}">${r.cpl > 0 ? 'R$' + formatMoney(r.cpl) : '--'}</td>
+            <td class="${r.entries > 0 ? 'val-good' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
+            <td class="${r.fastExits > 0 ? 'val-bad' : 'val-muted'}">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</td>
+            <td>${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</td>
+            <td class="${cplRealClass}">${r.cplReal > 0 ? 'R$' + formatMoney(r.cplReal) : '--'}</td>
+            <td>${r.retention > 0 ? r.retention.toFixed(1) + '%' : '--'}</td>
+            <td>${r.ctr.toFixed(2)}%</td>
+            <td>R$${formatMoney(r.cpm)}</td>
+        </tr>`;
+    }).join('');
+}
 
 // ==================== LOGOUT ====================
 async function logout() {
