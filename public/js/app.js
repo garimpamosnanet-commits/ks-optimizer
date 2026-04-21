@@ -1616,7 +1616,14 @@ async function loadMasterPanel() {
                 } catch (e) { /* skip */ }
             }
 
-            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm };
+            // Check if account has active campaigns
+            let hasActiveCampaigns = false;
+            try {
+                const camps = await api(`/campaigns?account_id=${acc.id}&status=ACTIVE`);
+                hasActiveCampaigns = camps && camps.length > 0;
+            } catch(e) {}
+
+            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, hasActiveCampaigns };
         } catch (e) { return null; }
     };
 
@@ -1807,6 +1814,9 @@ async function loadMasterPanel() {
                             <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
                             KS ON
                         </span>` : ''}
+                        ${r.hasActiveCampaigns
+                            ? '<span class="master-campaign-badge active">Campanhas Ativas</span>'
+                            : '<span class="master-campaign-badge paused">Campanhas Pausadas</span>'}
                     </div>
                 </div>
             </td>
