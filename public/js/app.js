@@ -1661,8 +1661,7 @@ async function loadMasterPanel() {
     setText('master-total-exits', formatNumber(totalExits));
     setText('master-active-count', activeCount.toString());
 
-    // Mark first load done + update timestamp
-    _masterFirstLoad = false;
+    // Update timestamp
     const now2 = new Date();
     const updatedEl = document.getElementById('master-updated-at');
     if (updatedEl) {
@@ -1799,7 +1798,7 @@ async function loadMasterPanel() {
             : rankIdx === 3 ? 'master-rank-bronze'
             : '';
 
-        return `<tr style="animation-delay:${i * 0.04}s">
+        return `<tr style="${_masterFirstLoad ? 'animation-delay:' + (i * 0.04) + 's' : 'animation:none'}">
             <td class="master-rank-cell ${rankClass}">${rankIdx}</td>
             <td>
                 <div class="master-client-cell">
@@ -1829,8 +1828,12 @@ async function loadMasterPanel() {
         </tr>`;
     }).join('');
 
-    // Check real campaign status sequentially (after table renders)
-    checkCampaignStatuses(filteredRows);
+    // Check real campaign status only on first load (not on refresh)
+    const wasFirstLoad = _masterFirstLoad;
+    _masterFirstLoad = false;
+    if (wasFirstLoad) {
+        checkCampaignStatuses(filteredRows);
+    }
 }
 
 async function checkCampaignStatuses(rows) {
