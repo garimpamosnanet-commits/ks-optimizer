@@ -1616,15 +1616,7 @@ async function loadMasterPanel() {
                 } catch (e) { /* skip */ }
             }
 
-            // Fetch correct members count (campaign groups only, not all groups)
-            if (instanceName && entries > 0) {
-                try {
-                    const membersData = await api(`/members/${instanceName}`);
-                    members = membersData.totalMembers || 0;
-                } catch (e) { /* skip */ }
-            }
-
-            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, members };
+            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm };
         } catch (e) { return null; }
     };
 
@@ -1826,7 +1818,7 @@ async function loadMasterPanel() {
             <td>${cplBarCell(r.cpl, 1.0)}</td>
             <td>${cplBarCell(r.cplReal, 1.3)}</td>
             <td>${retentionCell(r.retention)}</td>
-            <td class="master-num-cell ${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
+            <!-- Membros removido -->
             <td><button class="master-detail-btn" data-idx="${i}" onclick="showClientDetailByIdx(this.dataset.idx)" title="Ver detalhes">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button></td>
