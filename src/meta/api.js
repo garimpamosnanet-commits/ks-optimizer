@@ -21,11 +21,11 @@ class MetaAPI {
         const token = this.getToken();
         if (!token) throw new Error('Token Meta nao configurado');
 
-        // Rate limiting: min 500ms between requests (prevent Meta rate limit errors)
+        // Rate limiting: min 1000ms between requests (prevent Meta rate limit errors)
         const now = Date.now();
         const elapsed = now - this._lastRequest;
-        if (elapsed < 500) {
-            await new Promise(r => setTimeout(r, 500 - elapsed));
+        if (elapsed < 1000) {
+            await new Promise(r => setTimeout(r, 1000 - elapsed));
         }
         this._lastRequest = Date.now();
         this._requestCount++;

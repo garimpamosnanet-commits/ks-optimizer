@@ -16,7 +16,7 @@ class Scheduler {
 
     start() {
         const settings = db.getSettings();
-        const intervalMinutes = settings.optimization_interval_minutes || 15;
+        const intervalMinutes = settings.optimization_interval_minutes || 30;
         const intervalMs = intervalMinutes * 60 * 1000;
 
         // Optimization interval — always runs, checks auto_optimize flag each cycle
