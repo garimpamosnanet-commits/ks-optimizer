@@ -1428,7 +1428,7 @@ function setMasterDate(preset) {
 async function loadMasterPanel() {
     const tbody = document.getElementById('master-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="10" class="loading-state"><div class="spinner"></div> Carregando todos os clientes...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="loading-state"><div class="spinner"></div> Carregando todos os clientes...</td></tr>';
 
     // Date range for SalesEcommerce
     const now = new Date();
@@ -1455,7 +1455,7 @@ async function loadMasterPanel() {
             const ctr = parseFloat(raw.ctr) || 0;
             const cpm = parseFloat(raw.cpm) || 0;
 
-            let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0;
+            let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0, members = 0;
             const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
             if (instanceName) {
                 try {
@@ -1466,10 +1466,11 @@ async function loadMasterPanel() {
                     validLeads = entries - fastExits;
                     cplReal = validLeads > 0 ? spend / validLeads : 0;
                     retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
+                    members = totals.totalParticipants || 0;
                 } catch (e) { /* skip */ }
             }
 
-            return { name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm };
+            return { name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, members };
         } catch (e) { return null; }
     };
 
@@ -1487,7 +1488,7 @@ async function loadMasterPanel() {
             }
         }
         // Update progress
-        tbody.innerHTML = `<tr><td colspan="10" class="loading-state"><div class="spinner"></div> Carregando... ${rows.length} clientes encontrados</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="loading-state"><div class="spinner"></div> Carregando... ${rows.length} clientes encontrados</td></tr>`;
     }
 
     // Sort by spend descending
@@ -1502,44 +1503,72 @@ async function loadMasterPanel() {
 
     // Render table
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="loading-state">Nenhuma conta com gasto no periodo</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="loading-state">Nenhuma conta com gasto no periodo</td></tr>';
         return;
     }
 
-    tbody.innerHTML = rows.map(r => {
-        // Extract clean client name (remove account info like "[CA 05] - " and " - ATIVA")
-        let clientName = r.name;
-        const match = clientName.match(/\[([^\]]+)\]/);
-        if (match) clientName = match[1];
-        clientName = clientName.replace(/ - ATIV[AO]$/i, '').replace(/ - $/,'').trim();
+    // Client name mapping
+    const CLIENT_NAMES = {
+            'act_343078820487125': 'Hudson',
+            'act_4260177337539586': 'Hudson',
+            'act_700924378146370': 'Livia Bombo',
+            'act_1319994062238404': 'Junior',
+            'act_1220899122923055': 'Andre / Larisse',
+            'act_321696970444959': 'Jorge',
+            'act_1239747731524637': 'Jennifer',
+            'act_1720931478425787': 'Ivone',
+            'act_1916013155820452': 'Gilioli',
+            'act_328201254007546': 'Sabazius',
+            'act_338281941994189': 'Renata',
+            'act_339589001914046': 'Adriana',
+            'act_829642158833837': 'Amanda',
+            'act_840398074413162': 'Danielli',
+            'act_6745107755555484': 'Filipe',
+            'act_1843590456346828': 'Franci',
+            'act_1139088090094699': 'Debaldi',
+            'act_25573157989016239': 'Paloma',
+            'act_4036561509942696': 'Dani Wal',
+            'act_841869274830958': 'Jonathan',
+            'act_2068647333624515': 'Mario Jr',
+            'act_1949016345666216': 'Carina',
+            'act_2056603588205127': 'Carol',
+            'act_1393268055150638': 'Tais',
+            'act_1254904646649965': 'Eber Tiko',
+            'act_2236910550052314': 'Ana Paula',
+            'act_1410465710778958': 'Cassia',
+    };
 
-        // CPL bars
-        const cplColor = r.cpl <= 1.0 ? '#22c55e' : r.cpl <= 1.3 ? '#f59e0b' : '#ef4444';
-        const cplPct = r.cpl > 0 ? Math.min(Math.max((2.0 - r.cpl) / 2.0 * 100, 10), 100) : 0;
-        const cplRealColor = r.cplReal <= 1.3 ? '#22c55e' : r.cplReal <= 1.8 ? '#f59e0b' : '#ef4444';
-        const cplRealPct = r.cplReal > 0 ? Math.min(Math.max((3.0 - r.cplReal) / 3.0 * 100, 10), 100) : 0;
+    // Block bar helper (6 blocks like Pedro's design)
+    function cplBlocks(value, maxGood) {
+        if (!value || value <= 0) return '<span class="val-muted">--</span>';
+        // Calculate filled blocks (6 max). Lower CPL = more blocks
+        const ratio = Math.max(0, 1 - (value / (maxGood * 2.5)));
+        const filled = Math.max(1, Math.min(6, Math.round(ratio * 6)));
+        const color = value <= maxGood ? '#22c55e' : value <= maxGood * 1.4 ? '#f59e0b' : '#ef4444';
+        const blocks = Array.from({length: 6}, (_, i) =>
+            `<span class="cpl-block" style="background:${i < filled ? color : 'var(--border)'}"></span>`
+        ).join('');
+        return `<div class="cpl-cell">
+            <span style="color:${color};font-weight:700;font-size:14px">R$ ${formatMoney(value)}</span>
+            <div class="cpl-blocks">${blocks}</div>
+        </div>`;
+    }
+
+    tbody.innerHTML = rows.map(r => {
+        const accObj = _accounts.find(a => a.name === r.name);
+        const clientName = (accObj && CLIENT_NAMES[accObj.id]) || r.name.replace(/\[.*?\]/g, '').replace(/ - ATIV[AO]$/i, '').replace(/^ - /, '').trim();
 
         return `<tr>
-            <td class="client-name" title="${esc(r.name)}">${esc(clientName)}</td>
-            <td>R$${formatMoney(r.spend)}</td>
-            <td><strong>${formatNumber(r.leads)}</strong></td>
+            <td class="client-name-cell">${esc(clientName)}</td>
+            <td class="val-spend">R$ ${formatMoney(r.spend)}</td>
+            <td class="val-leads"><strong>${formatNumber(r.leads)}</strong></td>
             <td class="${r.entries > 0 ? 'val-good' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
+            <td class="${r.fastExits > 0 ? 'val-bad' : 'val-muted'}">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</td>
             <td>${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</td>
-            <td>
-                <div class="cpl-cell">
-                    <span style="color:${cplColor};font-weight:700">${r.cpl > 0 ? 'R$' + formatMoney(r.cpl) : '--'}</span>
-                    ${r.cpl > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${cplPct}%;background:${cplColor}"></div></div>` : ''}
-                </div>
-            </td>
-            <td>
-                <div class="cpl-cell">
-                    <span style="color:${r.cplReal > 0 ? cplRealColor : 'var(--text-muted)'};font-weight:700">${r.cplReal > 0 ? 'R$' + formatMoney(r.cplReal) : '--'}</span>
-                    ${r.cplReal > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${cplRealPct}%;background:${cplRealColor}"></div></div>` : ''}
-                </div>
-            </td>
+            <td>${cplBlocks(r.cpl, 1.0)}</td>
+            <td>${cplBlocks(r.cplReal, 1.3)}</td>
             <td>${r.retention > 0 ? r.retention.toFixed(1) + '%' : '--'}</td>
-            <td>${r.ctr.toFixed(2)}%</td>
-            <td>R$${formatMoney(r.cpm)}</td>
+            <td class="${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
         </tr>`;
     }).join('');
 }
