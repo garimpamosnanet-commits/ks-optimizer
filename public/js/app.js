@@ -1513,7 +1513,7 @@ async function loadMasterPanel() {
             'act_4260177337539586': 'Hudson',
             'act_700924378146370': 'Livia Bombo',
             'act_1319994062238404': 'Junior',
-            'act_1220899122923055': 'Andre / Larisse',
+            'act_1220899122923055': 'Andre',
             'act_321696970444959': 'Jorge',
             'act_1239747731524637': 'Jennifer',
             'act_1720931478425787': 'Ivone',
@@ -1525,9 +1525,9 @@ async function loadMasterPanel() {
             'act_840398074413162': 'Danielli',
             'act_6745107755555484': 'Filipe',
             'act_1843590456346828': 'Franci',
-            'act_1139088090094699': 'Debaldi',
-            'act_25573157989016239': 'Paloma',
-            'act_4036561509942696': 'Dani Wal',
+            'act_1139088090094699': '__HIDE__',
+            'act_25573157989016239': 'Paloma Novo',
+            'act_4036561509942696': 'Jose Camilo',
             'act_841869274830958': 'Jonathan',
             'act_2068647333624515': 'Mario Jr',
             'act_1949016345666216': 'Carina',
@@ -1558,7 +1558,12 @@ async function loadMasterPanel() {
     let allConfigs = [];
     try { allConfigs = await api('/optimization/configs'); } catch(e) {}
 
-    tbody.innerHTML = rows.map(r => {
+    tbody.innerHTML = rows.filter(r => {
+        // Hide specific accounts
+        const name = CLIENT_NAMES[r.id];
+        if (name === '__HIDE__') return false;
+        return true;
+    }).map(r => {
         const clientName = CLIENT_NAMES[r.id] || r.name.replace(/\[.*?\]/g, '').replace(/ - ATIV[AO]$/i, '').replace(/^ - /, '').trim();
         const hasOptActive = allConfigs.some(c => c.account_id === r.id && c.enabled);
 
