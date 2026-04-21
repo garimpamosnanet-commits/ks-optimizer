@@ -1493,18 +1493,32 @@ async function loadMasterPanel() {
     }
 
     tbody.innerHTML = rows.map(r => {
-        const cplClass = r.cpl > 0 && r.cpl <= 1.0 ? 'val-good' : r.cpl > 1.5 ? 'val-bad' : '';
-        const cplRealClass = r.cplReal > 0 && r.cplReal <= 1.5 ? 'val-good' : r.cplReal > 2.5 ? 'val-bad' : '';
+        // CPL bar: max 2.0 = 100%, green if <1.0, yellow 1.0-1.5, red >1.5
+        const cplPct = r.cpl > 0 ? Math.min((1 - (r.cpl / 2.0)) * 100, 100) : 0;
+        const cplColor = r.cpl <= 1.0 ? '#22c55e' : r.cpl <= 1.5 ? '#f59e0b' : '#ef4444';
+        const cplRealPct = r.cplReal > 0 ? Math.min((1 - (r.cplReal / 3.0)) * 100, 100) : 0;
+        const cplRealColor = r.cplReal <= 1.5 ? '#22c55e' : r.cplReal <= 2.0 ? '#f59e0b' : '#ef4444';
+
         return `<tr>
             <td class="client-name" title="${esc(r.name)}">${esc(r.name)}</td>
             <td><span class="master-status-active">ATIVO</span></td>
             <td>R$${formatMoney(r.spend)}</td>
             <td><strong>${formatNumber(r.leads)}</strong></td>
-            <td class="${cplClass}">${r.cpl > 0 ? 'R$' + formatMoney(r.cpl) : '--'}</td>
+            <td>
+                <div class="cpl-cell">
+                    <span style="color:${cplColor};font-weight:700">${r.cpl > 0 ? 'R$ ' + formatMoney(r.cpl) : '--'}</span>
+                    ${r.cpl > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${Math.max(cplPct, 8)}%;background:${cplColor}"></div></div>` : ''}
+                </div>
+            </td>
             <td class="${r.entries > 0 ? 'val-good' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
             <td class="${r.fastExits > 0 ? 'val-bad' : 'val-muted'}">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</td>
             <td>${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</td>
-            <td class="${cplRealClass}">${r.cplReal > 0 ? 'R$' + formatMoney(r.cplReal) : '--'}</td>
+            <td>
+                <div class="cpl-cell">
+                    <span style="color:${r.cplReal > 0 ? cplRealColor : 'var(--text-muted)'};font-weight:700">${r.cplReal > 0 ? 'R$ ' + formatMoney(r.cplReal) : '--'}</span>
+                    ${r.cplReal > 0 ? `<div class="cpl-bar"><div class="cpl-bar-fill" style="width:${Math.max(cplRealPct, 8)}%;background:${cplRealColor}"></div></div>` : ''}
+                </div>
+            </td>
             <td>${r.retention > 0 ? r.retention.toFixed(1) + '%' : '--'}</td>
             <td>${r.ctr.toFixed(2)}%</td>
             <td>R$${formatMoney(r.cpm)}</td>
