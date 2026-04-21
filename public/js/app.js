@@ -1398,6 +1398,27 @@ async function saveBudget(objectId) {
 }
 
 // ==================== CLIENT DETAIL MODAL (for print/screenshot) ====================
+function showClientDetailByIdx(idx) {
+    const rows = window._masterRows;
+    if (!rows || !rows[idx]) return;
+    const r = rows[idx];
+    const CLIENT_NAMES_DETAIL = {
+        'act_343078820487125': 'Hudson', 'act_4260177337539586': 'Hudson',
+        'act_700924378146370': 'Livia Bombo', 'act_1319994062238404': 'Junior',
+        'act_1220899122923055': 'Andre', 'act_321696970444959': 'Jorge',
+        'act_1239747731524637': 'Jennifer', 'act_1720931478425787': 'Ivone',
+        'act_1916013155820452': 'Gilioli', 'act_339589001914046': 'Adriana',
+        'act_840398074413162': 'Danielli', 'act_6745107755555484': 'Filipe',
+        'act_1843590456346828': 'Franci', 'act_25573157989016239': 'Paloma Novo',
+        'act_4036561509942696': 'Jose Camilo', 'act_841869274830958': 'Jonathan',
+        'act_338281941994189': 'Renata', 'act_2236910550052314': 'Ana Paula',
+        'act_829642158833837': 'Amanda', 'act_2056603588205127': 'Carol',
+        'act_1254904646649965': 'Eber Tiko',
+    };
+    const name = CLIENT_NAMES_DETAIL[r.id] || r.name;
+    showClientDetail(name, r);
+}
+
 function showClientDetail(name, data) {
     // Remove existing modal
     const existing = document.getElementById('client-detail-modal');
@@ -1633,8 +1654,9 @@ async function loadMasterPanel() {
         }
     }
 
-    // Sort by spend descending
+    // Sort by spend descending + store globally for detail modal
     rows.sort((a, b) => b.spend - a.spend);
+    window._masterRows = rows;
 
     // Update KPI cards
     setText('master-total-spend', `R$ ${formatMoney(totalSpend)}`);
@@ -1805,7 +1827,7 @@ async function loadMasterPanel() {
             <td>${cplBarCell(r.cplReal, 1.3)}</td>
             <td>${retentionCell(r.retention)}</td>
             <td class="master-num-cell ${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
-            <td><button class="master-detail-btn" onclick="showClientDetail('${esc(clientName)}', ${JSON.stringify(r).replace(/'/g, "\\'")})" title="Ver detalhes">
+            <td><button class="master-detail-btn" data-idx="${i}" onclick="showClientDetailByIdx(this.dataset.idx)" title="Ver detalhes">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button></td>
         </tr>`;
