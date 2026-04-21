@@ -285,17 +285,18 @@ const ACCOUNT_INSTANCE_MAP = {
     'act_328201254007546': 'sabaziuscp',              // Sabazius
     'act_338281941994189': 'promocoes-do-dia',        // Renata
     'act_339589001914046': 'achadinhos-da-dri',       // Adriana
-    'act_829642158833837': 'achadinhos-da-anna',      // Amanda
+    'act_829642158833837': '',                          // Amanda (sem instancia)
     'act_840398074413162': 'achadinhos-do-borogodo',  // Danielli
     'act_6745107755555484': 'ze-ofertas',             // Filipe
     'act_1843590456346828': 'garimpo-da-mamae',       // Franci
     'act_1139088090094699': 'dicas-da-ca',            // Debaldi
-    'act_25573157989016239': 'promo-da-oportunidade', // Paloma
+    'act_25573157989016239': 'promocoes-do-dia1',     // Paloma
     'act_4036561509942696': 'promo-da-dinda',         // Dani Wal / Wal / Jose Camilo
+    'act_2236910550052314': 'achadinhos-da-anna',      // Ana Paula
     'act_841869274830958': 'achadinhos-para-pobre',   // Jonathan
     'act_2068647333624515': 'sabaziuscp',             // Mario Jr
     'act_1949016345666216': 'dicas-da-ca',            // Carina
-    'act_2056603588205127': 'achadinhos-da-anna',     // Carol
+    'act_2056603588205127': 'promo-da-oportunidade',  // Carol
     'act_1393268055150638': 'achadinhos-da-tata',     // Tais
     'act_1254904646649965': 'achadinhos-imbativel',   // Eber/Tiko
 };
