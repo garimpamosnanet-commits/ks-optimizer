@@ -169,69 +169,112 @@
 
                 <!-- PAGE: MASTER PANEL -->
                 <div class="page" id="page-master">
-                    <div class="breadcrumb">
-                        <span>Funcionalidades</span> / <a>Painel Master</a> /
-                    </div>
-                    <div class="page-header">
-                        <h2>Painel Master — Todos os Clientes</h2>
-                        <div class="page-header-actions">
+                    <!-- Master Header -->
+                    <div class="master-header">
+                        <div class="master-header-left">
+                            <div class="master-header-title-group">
+                                <h2 class="master-title">Painel Master</h2>
+                                <p class="master-subtitle">Visao geral de performance dos clientes</p>
+                            </div>
+                            <span class="master-updated" id="master-updated-at">--</span>
+                        </div>
+                        <div class="master-header-right">
                             <div class="date-filter" id="master-date-filter">
                                 <button class="date-btn" onclick="setMasterDate('today')">Hoje</button>
                                 <button class="date-btn active" onclick="setMasterDate('last_7d')">7D</button>
                                 <button class="date-btn" onclick="setMasterDate('last_30d')">30D</button>
                             </div>
-                            <button class="btn btn-primary btn-sm" onclick="loadMasterPanel()">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                            <button class="btn btn-primary btn-sm master-refresh-btn" onclick="loadMasterPanel()">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                                 Atualizar
                             </button>
                         </div>
                     </div>
 
-                    <!-- Master Stats -->
-                    <div class="metrics-grid" style="margin-bottom:20px">
-                        <div class="metric-card card-blue">
-                            <div class="metric-label">INVESTIMENTO TODOS CLIENTES</div>
-                            <div class="metric-value" id="master-total-spend">--</div>
+                    <!-- KPI Cards -->
+                    <div class="master-kpi-grid">
+                        <div class="master-kpi-card master-kpi-blue">
+                            <div class="master-kpi-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                            </div>
+                            <div class="master-kpi-body">
+                                <div class="master-kpi-label">Investimento Total</div>
+                                <div class="master-kpi-value" id="master-total-spend">--</div>
+                            </div>
                         </div>
-                        <div class="metric-card card-green">
-                            <div class="metric-label">LEADS TOTAL META</div>
-                            <div class="metric-value" id="master-total-leads">--</div>
+                        <div class="master-kpi-card master-kpi-violet">
+                            <div class="master-kpi-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                            </div>
+                            <div class="master-kpi-body">
+                                <div class="master-kpi-label">Leads Meta</div>
+                                <div class="master-kpi-value" id="master-total-leads">--</div>
+                            </div>
                         </div>
-                        <div class="metric-card card-green">
-                            <div class="metric-label">ENTRADAS REAIS NO GRUPO</div>
-                            <div class="metric-value" id="master-total-entries">--</div>
+                        <div class="master-kpi-card master-kpi-green">
+                            <div class="master-kpi-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+                            </div>
+                            <div class="master-kpi-body">
+                                <div class="master-kpi-label">Entradas Reais</div>
+                                <div class="master-kpi-value" id="master-total-entries">--</div>
+                            </div>
                         </div>
-                        <div class="metric-card card-orange">
-                            <div class="metric-label">CPL MEDIO META</div>
-                            <div class="metric-value" id="master-avg-cpl">--</div>
+                        <div class="master-kpi-card master-kpi-amber">
+                            <div class="master-kpi-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M6 20V4M18 20v-6"/></svg>
+                            </div>
+                            <div class="master-kpi-body">
+                                <div class="master-kpi-label">CPL Medio Meta</div>
+                                <div class="master-kpi-value" id="master-avg-cpl">--</div>
+                            </div>
                         </div>
-                        <div class="metric-card card-purple">
-                            <div class="metric-label">CONTAS DE ANUNCIO ATIVAS</div>
-                            <div class="metric-value" id="master-active-count">--</div>
+                        <div class="master-kpi-card master-kpi-slate">
+                            <div class="master-kpi-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            </div>
+                            <div class="master-kpi-body">
+                                <div class="master-kpi-label">Contas Ativas</div>
+                                <div class="master-kpi-value" id="master-active-count">--</div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Master Table -->
-                    <div class="master-table-wrapper">
-                        <table class="master-table" id="master-table">
-                            <thead>
-                                <tr>
-                                    <th>Cliente</th>
-                                    <th>Investimento</th>
-                                    <th>Leads Meta</th>
-                                    <th>Entradas Reais</th>
-                                    <th>Saiu &lt;24h</th>
-                                    <th>Leads Validos</th>
-                                    <th>CPL Meta</th>
-                                    <th>CPL Real</th>
-                                    <th>Retencao</th>
-                                    <th>Membros</th>
-                                </tr>
-                            </thead>
-                            <tbody id="master-table-body">
-                                <tr><td colspan="12" class="loading-state"><div class="spinner"></div> Clique em Atualizar para carregar</td></tr>
-                            </tbody>
-                        </table>
+                    <!-- Master Table Card -->
+                    <div class="master-table-card">
+                        <div class="master-table-card-header">
+                            <span class="master-table-card-title">Performance por Cliente</span>
+                            <span class="master-table-card-count" id="master-client-count"></span>
+                        </div>
+                        <div class="master-table-wrapper">
+                            <table class="master-table" id="master-table">
+                                <thead>
+                                    <tr>
+                                        <th class="th-rank">#</th>
+                                        <th>Cliente</th>
+                                        <th class="th-right">Investimento</th>
+                                        <th class="th-right">Leads Meta</th>
+                                        <th class="th-right th-green">Entradas</th>
+                                        <th class="th-right th-red">Saiu &lt;24h</th>
+                                        <th class="th-right">Leads Validos</th>
+                                        <th>CPL Meta</th>
+                                        <th>CPL Real</th>
+                                        <th>Retencao</th>
+                                        <th class="th-right">Membros</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="master-table-body">
+                                    <tr><td colspan="11" class="master-empty-state">
+                                        <div class="master-skeleton-rows">
+                                            <div class="master-skeleton-row"></div>
+                                            <div class="master-skeleton-row"></div>
+                                            <div class="master-skeleton-row"></div>
+                                            <div class="master-skeleton-row"></div>
+                                        </div>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 

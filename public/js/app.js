@@ -1429,7 +1429,17 @@ function setMasterDate(preset) {
 async function loadMasterPanel() {
     const tbody = document.getElementById('master-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="11" class="loading-state"><div class="spinner"></div> Carregando todos os clientes...</td></tr>';
+
+    // Show skeleton loading
+    tbody.innerHTML = `<tr><td colspan="11" class="master-empty-state">
+        <div class="master-skeleton-rows">
+            <div class="master-skeleton-row"></div>
+            <div class="master-skeleton-row"></div>
+            <div class="master-skeleton-row"></div>
+            <div class="master-skeleton-row"></div>
+            <div class="master-skeleton-row"></div>
+        </div>
+    </td></tr>`;
 
     // Date range for SalesEcommerce
     const now = new Date();
@@ -1488,23 +1498,38 @@ async function loadMasterPanel() {
                 activeCount++;
             }
         }
-        // Update progress
-        tbody.innerHTML = `<tr><td colspan="11" class="loading-state"><div class="spinner"></div> Carregando... ${rows.length} clientes encontrados</td></tr>`;
+        // Update skeleton progress
+        tbody.innerHTML = `<tr><td colspan="11" class="master-empty-state">
+            <div class="master-skeleton-rows">
+                ${Array.from({length: Math.max(3, rows.length || 3)}, (_, i) =>
+                    `<div class="master-skeleton-row" style="animation-delay:${i*0.05}s"></div>`
+                ).join('')}
+            </div>
+        </td></tr>`;
     }
 
     // Sort by spend descending
     rows.sort((a, b) => b.spend - a.spend);
 
-    // Update totals
+    // Update KPI cards
     setText('master-total-spend', `R$ ${formatMoney(totalSpend)}`);
     setText('master-total-leads', formatNumber(totalLeads));
     setText('master-total-entries', formatNumber(totalEntries));
     setText('master-avg-cpl', totalLeads > 0 ? `R$ ${formatMoney(totalSpend / totalLeads)}` : '--');
     setText('master-active-count', activeCount.toString());
 
+    // Update timestamp
+    const now2 = new Date();
+    const updatedEl = document.getElementById('master-updated-at');
+    if (updatedEl) {
+        updatedEl.textContent = `Atualizado as ${now2.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
     // Render table
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="loading-state">Nenhuma conta com gasto no periodo</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="11" style="padding:48px;text-align:center;color:var(--text-muted);font-size:14px">
+            Nenhuma conta com gasto no periodo selecionado
+        </td></tr>`;
         return;
     }
 
@@ -1539,19 +1564,41 @@ async function loadMasterPanel() {
             'act_1410465710778958': 'Cassia',
     };
 
-    // Block bar helper (6 blocks like Pedro's design)
-    function cplBlocks(value, maxGood) {
-        if (!value || value <= 0) return '<span class="val-muted">--</span>';
-        // Calculate filled blocks (6 max). Lower CPL = more blocks
-        const ratio = Math.max(0, 1 - (value / (maxGood * 2.5)));
-        const filled = Math.max(1, Math.min(6, Math.round(ratio * 6)));
-        const color = value <= maxGood ? '#22c55e' : value <= maxGood * 1.4 ? '#f59e0b' : '#ef4444';
-        const blocks = Array.from({length: 6}, (_, i) =>
-            `<span class="cpl-block" style="background:${i < filled ? color : 'var(--border)'}"></span>`
-        ).join('');
-        return `<div class="cpl-cell">
-            <span style="color:${color};font-weight:700;font-size:14px">R$ ${formatMoney(value)}</span>
-            <div class="cpl-blocks">${blocks}</div>
+    // Premium horizontal bar CPL helper
+    // Lower CPL = bar closer to 100%. Green <= 1.00, amber 1.00-1.50, red > 1.50
+    function cplBarCell(value, maxGood) {
+        if (!value || value <= 0) {
+            return `<div class="master-cpl-cell master-cpl-none">
+                <span class="master-cpl-value">--</span>
+            </div>`;
+        }
+        const colorClass = value <= maxGood ? 'master-cpl-good'
+            : value <= maxGood * 1.5 ? 'master-cpl-warn'
+            : 'master-cpl-bad';
+        // Bar width: 100% at CPL=0, 50% at CPL=maxGood, 10% at CPL=2*maxGood+
+        const pct = Math.max(5, Math.min(100, Math.round((1 - (value / (maxGood * 2.5))) * 100)));
+        return `<div class="master-cpl-cell ${colorClass}">
+            <span class="master-cpl-value">R$ ${formatMoney(value)}</span>
+            <div class="master-cpl-bar-track">
+                <div class="master-cpl-bar-fill" style="width:${pct}%"></div>
+            </div>
+        </div>`;
+    }
+
+    // Retention bar helper
+    function retentionCell(retention) {
+        if (!retention || retention <= 0) {
+            return `<div class="master-ret-cell">
+                <span class="master-ret-value" style="color:var(--text-muted)">--</span>
+            </div>`;
+        }
+        const pct = Math.min(100, Math.round(retention));
+        const color = retention >= 75 ? '#16a34a' : retention >= 50 ? '#d97706' : '#dc2626';
+        return `<div class="master-ret-cell">
+            <span class="master-ret-value" style="color:${color}">${retention.toFixed(1)}%</span>
+            <div class="master-ret-bar-track">
+                <div class="master-ret-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
         </div>`;
     }
 
@@ -1559,29 +1606,45 @@ async function loadMasterPanel() {
     let allConfigs = [];
     try { allConfigs = await api('/optimization/configs'); } catch(e) {}
 
-    tbody.innerHTML = rows.filter(r => {
-        // Hide specific accounts
+    const filteredRows = rows.filter(r => {
         const name = CLIENT_NAMES[r.id];
-        if (name === '__HIDE__') return false;
-        return true;
-    }).map(r => {
+        return name !== '__HIDE__';
+    });
+
+    // Update client count
+    const countEl = document.getElementById('master-client-count');
+    if (countEl) countEl.textContent = `${filteredRows.length} clientes`;
+
+    let rankIdx = 0;
+    tbody.innerHTML = filteredRows.map((r, i) => {
         const clientName = CLIENT_NAMES[r.id] || r.name.replace(/\[.*?\]/g, '').replace(/ - ATIV[AO]$/i, '').replace(/^ - /, '').trim();
         const hasOptActive = allConfigs.some(c => c.account_id === r.id && c.enabled);
+        rankIdx++;
+        const rankClass = rankIdx === 1 ? 'master-rank-gold'
+            : rankIdx === 2 ? 'master-rank-silver'
+            : rankIdx === 3 ? 'master-rank-bronze'
+            : '';
 
-        return `<tr>
-            <td class="client-name-cell">
-                ${clientName}
-                ${hasOptActive ? '<span class="master-ks-badge">KS ON</span>' : ''}
+        return `<tr style="animation-delay:${i * 0.04}s">
+            <td class="master-rank-cell ${rankClass}">${rankIdx}</td>
+            <td>
+                <div class="master-client-cell">
+                    <span class="master-client-name">${esc(clientName)}</span>
+                    ${hasOptActive ? `<span class="master-ks-badge">
+                        <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                        KS ON
+                    </span>` : ''}
+                </div>
             </td>
-            <td class="val-spend">R$ ${formatMoney(r.spend)}</td>
-            <td class="val-leads"><strong>${formatNumber(r.leads)}</strong></td>
-            <td class="${r.entries > 0 ? 'val-good' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
-            <td class="${r.fastExits > 0 ? 'val-bad' : 'val-muted'}">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</td>
-            <td>${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</td>
-            <td>${cplBlocks(r.cpl, 1.0)}</td>
-            <td>${cplBlocks(r.cplReal, 1.3)}</td>
-            <td>${r.retention > 0 ? r.retention.toFixed(1) + '%' : '--'}</td>
-            <td class="${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
+            <td class="master-num-cell val-spend">R$ ${formatMoney(r.spend)}</td>
+            <td class="master-num-cell val-leads">${formatNumber(r.leads)}</td>
+            <td class="master-num-cell ${r.entries > 0 ? 'val-entries' : 'val-muted'}">${r.entries > 0 ? formatNumber(r.entries) : '--'}</td>
+            <td class="master-num-cell ${r.fastExits > 0 ? 'val-exits' : 'val-muted'}">${r.fastExits > 0 ? formatNumber(r.fastExits) : '--'}</td>
+            <td class="master-num-cell ${r.validLeads > 0 ? '' : 'val-muted'}">${r.validLeads > 0 ? formatNumber(r.validLeads) : '--'}</td>
+            <td>${cplBarCell(r.cpl, 1.0)}</td>
+            <td>${cplBarCell(r.cplReal, 1.3)}</td>
+            <td>${retentionCell(r.retention)}</td>
+            <td class="master-num-cell ${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
         </tr>`;
     }).join('');
 }
