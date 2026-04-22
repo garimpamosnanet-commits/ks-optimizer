@@ -338,6 +338,34 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         }
     });
 
+    // Get full campaign groups list (for management UI)
+    router.get('/campaign-groups/:instanceName', async (req, res) => {
+        try {
+            const url = `${SE_BASE}/api/v1/whatsappweb/cpl/campaigngroups/${req.params.instanceName}`;
+            const resp = await fetch(url, { headers: { 'x-api-key': SE_KEY } });
+            const data = await resp.json();
+            res.json(data);
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
+    // Update hasMetric for groups (batch)
+    router.patch('/campaign-groups/:instanceName/hasMetric', async (req, res) => {
+        try {
+            const url = `${SE_BASE}/api/v1/whatsappweb/groups/${req.params.instanceName}/hasMetric`;
+            const resp = await fetch(url, {
+                method: 'PATCH',
+                headers: { 'x-api-key': SE_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify(req.body)
+            });
+            const data = await resp.json();
+            res.json(data);
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
     router.get('/members/:instanceName', async (req, res) => {
         try {
             const instance = req.params.instanceName;

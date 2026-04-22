@@ -189,6 +189,7 @@ function navigateTo(page) {
     }
 
     // Load page-specific data
+    if (page === 'groups') initGroupsPage();
     if (page === 'master') loadMasterPanel();
     if (page === 'dashboard') loadDashboard();
     if (page === 'optimization') loadOptimizationPage();
@@ -1394,6 +1395,201 @@ async function saveBudget(objectId) {
     } catch (e) {
         showToast(`Erro: ${e.message}`, 'error');
         if (el) el.textContent = 'Erro';
+    }
+}
+
+// ==================== GROUPS MANAGEMENT PAGE ====================
+let _groupsData = null;
+let _groupsDebounceTimer = null;
+let _groupsPendingUpdates = [];
+
+function initGroupsPage() {
+    const select = document.getElementById('groups-instance-select');
+    if (!select) return;
+
+    // Populate dropdown with all mapped instances
+    const CLIENT_NAMES = {
+        'act_343078820487125': 'Hudson',
+        'act_4260177337539586': 'Hudson',
+        'act_700924378146370': 'Livia Bombo',
+        'act_1319994062238404': 'Junior',
+        'act_1220899122923055': 'Andre',
+        'act_321696970444959': 'Jorge',
+        'act_1239747731524637': 'Jennifer',
+        'act_1720931478425787': 'Ivone',
+        'act_1916013155820452': 'Gilioli',
+        'act_339589001914046': 'Adriana',
+        'act_840398074413162': 'Danielli',
+        'act_6745107755555484': 'Filipe',
+        'act_1843590456346828': 'Franci',
+        'act_25573157989016239': 'Paloma',
+        'act_4036561509942696': 'Jose Camilo',
+        'act_841869274830958': 'Jonathan',
+        'act_338281941994189': 'Renata',
+        'act_2236910550052314': 'Ana Paula',
+        'act_1254904646649965': 'Eber Tiko',
+    };
+    const INSTANCE_MAP = typeof ACCOUNT_INSTANCE_MAP !== 'undefined' ? ACCOUNT_INSTANCE_MAP : {};
+    const instances = [...new Set(Object.values(INSTANCE_MAP).filter(Boolean))];
+    const nameByInstance = {};
+    for (const [acc, inst] of Object.entries(INSTANCE_MAP)) {
+        if (inst && !nameByInstance[inst]) nameByInstance[inst] = CLIENT_NAMES[acc] || inst;
+    }
+
+    select.innerHTML = '<option value="">Selecione...</option>' + instances.map(inst =>
+        `<option value="${inst}">${nameByInstance[inst] || inst}</option>`
+    ).join('');
+}
+
+async function loadGroupsPage() {
+    const select = document.getElementById('groups-instance-select');
+    const instance = select?.value;
+    const content = document.getElementById('groups-content');
+    const summary = document.getElementById('groups-summary');
+
+    if (!instance) {
+        content.innerHTML = '';
+        summary.style.display = 'none';
+        return;
+    }
+
+    content.innerHTML = '<div class="loading-state"><div class="spinner"></div> Carregando grupos...</div>';
+
+    try {
+        _groupsData = await api(`/campaign-groups/${instance}`);
+        renderGroupsPage();
+    } catch (e) {
+        content.innerHTML = `<div class="empty-state"><h3>Erro ao carregar</h3><p>${esc(e.message)}</p></div>`;
+    }
+}
+
+function renderGroupsPage() {
+    const content = document.getElementById('groups-content');
+    const summary = document.getElementById('groups-summary');
+
+    if (!_groupsData || _groupsData.length === 0) {
+        content.innerHTML = '<div class="empty-state"><h3>Nenhum grupo encontrado</h3></div>';
+        summary.style.display = 'none';
+        return;
+    }
+
+    // Calculate totals
+    let totalGroups = 0, metricGroups = 0, totalMembers = 0, validMembers = 0;
+    for (const camp of _groupsData) {
+        for (const g of (camp.groups || [])) {
+            totalGroups++;
+            totalMembers += g.participantCount || 0;
+            if (g.hasMetric) {
+                metricGroups++;
+                validMembers += g.participantCount || 0;
+            }
+        }
+    }
+
+    summary.style.display = 'block';
+    summary.innerHTML = `
+        <div class="metrics-grid">
+            <div class="metric-card card-green">
+                <div class="metric-label">GRUPOS METRIFICADOS</div>
+                <div class="metric-value">${metricGroups} / ${totalGroups}</div>
+            </div>
+            <div class="metric-card card-green">
+                <div class="metric-label">MEMBROS VALIDOS</div>
+                <div class="metric-value">${formatNumber(validMembers)}</div>
+            </div>
+            <div class="metric-card card-red">
+                <div class="metric-label">GRUPOS FANTASMA (IGNORADOS)</div>
+                <div class="metric-value">${totalGroups - metricGroups}</div>
+            </div>
+            <div class="metric-card card-red">
+                <div class="metric-label">MEMBROS IGNORADOS</div>
+                <div class="metric-value">${formatNumber(totalMembers - validMembers)}</div>
+            </div>
+        </div>
+    `;
+
+    content.innerHTML = _groupsData.map(camp => `
+        <div class="groups-campaign">
+            <div class="groups-campaign-header">
+                <div>
+                    <h3>${esc(camp.campaignName)}</h3>
+                    <span>${camp.groups.filter(g => g.hasMetric).length}/${camp.groups.length} metrificados</span>
+                </div>
+                <div class="groups-bulk-actions">
+                    <button class="btn btn-outline btn-sm" onclick="bulkMarkGroups('${esc(camp.campaignName)}', true)">Marcar todos</button>
+                    <button class="btn btn-outline btn-sm" onclick="bulkMarkGroups('${esc(camp.campaignName)}', false)">Desmarcar todos</button>
+                </div>
+            </div>
+            <div class="groups-list">
+                ${camp.groups.sort((a,b) => (a.positionIndex||999) - (b.positionIndex||999)).map(g => `
+                    <div class="group-item ${g.hasMetric ? 'group-active' : ''}" data-group-id="${g.groupId}">
+                        <label class="toggle">
+                            <input type="checkbox" ${g.hasMetric ? 'checked' : ''} onchange="toggleGroupMetric('${g.groupId}', this.checked, this)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="group-info">
+                            <div class="group-subject">
+                                ${g.positionIndex ? `<span class="group-pos">#${g.positionIndex}</span>` : '<span class="group-pos warn">sem #</span>'}
+                                ${esc(g.subject)}
+                                ${g.duplicateIndex ? '<span class="group-warn">indice duplicado</span>' : ''}
+                            </div>
+                            <div class="group-meta">${formatNumber(g.participantCount || 0)} membros</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function toggleGroupMetric(groupId, hasMetric, checkboxEl) {
+    const item = checkboxEl.closest('.group-item');
+    item.classList.toggle('group-active', hasMetric);
+
+    // Update local data
+    for (const camp of _groupsData) {
+        const g = camp.groups.find(x => x.groupId === groupId);
+        if (g) g.hasMetric = hasMetric;
+    }
+
+    // Debounce: accumulate updates and send batch after 500ms of inactivity
+    _groupsPendingUpdates.push({ groupJid: groupId, hasMetric });
+    if (_groupsDebounceTimer) clearTimeout(_groupsDebounceTimer);
+    _groupsDebounceTimer = setTimeout(flushGroupsUpdates, 500);
+}
+
+async function flushGroupsUpdates() {
+    if (_groupsPendingUpdates.length === 0) return;
+    const updates = [..._groupsPendingUpdates];
+    _groupsPendingUpdates = [];
+
+    const instance = document.getElementById('groups-instance-select').value;
+    try {
+        const result = await api(`/campaign-groups/${instance}/hasMetric`, 'PATCH', { groups: updates });
+        const failed = Array.isArray(result) ? result.filter(r => !r.updated).length : 0;
+        if (failed > 0) {
+            showToast(`${updates.length - failed} atualizados, ${failed} erros`, 'error');
+        } else {
+            showToast(`${updates.length} grupo(s) atualizados`, 'success');
+        }
+        renderGroupsPage();
+    } catch (e) {
+        showToast(`Erro: ${e.message}`, 'error');
+    }
+}
+
+async function bulkMarkGroups(campaignName, hasMetric) {
+    const camp = _groupsData.find(c => c.campaignName === campaignName);
+    if (!camp) return;
+    const updates = camp.groups.map(g => ({ groupJid: g.groupId, hasMetric }));
+    const instance = document.getElementById('groups-instance-select').value;
+    try {
+        await api(`/campaign-groups/${instance}/hasMetric`, 'PATCH', { groups: updates });
+        for (const g of camp.groups) g.hasMetric = hasMetric;
+        showToast(`${updates.length} grupos atualizados`, 'success');
+        renderGroupsPage();
+    } catch (e) {
+        showToast(`Erro: ${e.message}`, 'error');
     }
 }
 
