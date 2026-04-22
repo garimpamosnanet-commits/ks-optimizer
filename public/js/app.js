@@ -189,6 +189,7 @@ function navigateTo(page) {
     }
 
     // Load page-specific data
+    if (page === 'live') initLiveFeed();
     if (page === 'groups') initGroupsPage();
     if (page === 'master') loadMasterPanel();
     if (page === 'dashboard') loadDashboard();
@@ -1396,6 +1397,121 @@ async function saveBudget(objectId) {
         showToast(`Erro: ${e.message}`, 'error');
         if (el) el.textContent = 'Erro';
     }
+}
+
+// ==================== LIVE FEED ====================
+let _liveEvents = [];
+let _liveFilter = 'today';
+
+async function initLiveFeed() {
+    // Fill webhook URL
+    const urlEl = document.getElementById('webhook-url');
+    if (urlEl) urlEl.textContent = `${window.location.origin}/api/webhook/feed-leads`;
+
+    // Load existing events
+    try {
+        _liveEvents = await api('/webhook/feed-leads');
+    } catch (e) { _liveEvents = []; }
+
+    renderLiveFeed();
+
+    // Listen for real-time events via Socket.IO
+    if (typeof socket !== 'undefined' && !socket.hasLiveListener) {
+        socket.on('lead_event', (event) => {
+            _liveEvents.unshift(event);
+            if (_liveEvents.length > 200) _liveEvents = _liveEvents.slice(0, 200);
+            if (_currentPage === 'live') renderLiveFeed(true);
+        });
+        socket.hasLiveListener = true;
+    }
+}
+
+function setLiveFilter(filter, btn) {
+    _liveFilter = filter;
+    document.querySelectorAll('.live-pill').forEach(p => p.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderLiveFeed();
+}
+
+function renderLiveFeed(isNewEvent) {
+    const feed = document.getElementById('live-feed');
+    if (!feed) return;
+
+    // Filter by date
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const yesterday = new Date(now - 86400000).toISOString().slice(0, 10);
+
+    const filtered = _liveEvents.filter(e => {
+        if (_liveFilter === 'all') return true;
+        const eventDate = (e.received_at || e.timestamp || '').slice(0, 10);
+        if (_liveFilter === 'today') return eventDate === today;
+        if (_liveFilter === 'yesterday') return eventDate === yesterday;
+        return true;
+    });
+
+    // Count stats
+    const entered = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('entr')).length;
+    const exited = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('sai')).length;
+    const fastExits = filtered.filter(e => e.fast_exit || (e.minutes_in_group && e.minutes_in_group < 1440)).length;
+
+    setText('live-count-entered', entered.toString());
+    setText('live-count-exited', exited.toString());
+    setText('live-count-fast', fastExits.toString());
+
+    if (filtered.length === 0) {
+        feed.innerHTML = `<div class="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted);margin-bottom:12px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+            <h3>Aguardando eventos...</h3>
+            <p>Configure o webhook no n8n para receber eventos em tempo real</p>
+        </div>`;
+        return;
+    }
+
+    feed.innerHTML = filtered.slice(0, 50).map((e, i) => {
+        const eventType = e.event || e.action || 'Event';
+        const phone = e.phone || e.from || e.number || '';
+        const location = e.location || e.city || '';
+        const group = e.group || e.group_name || e.groupName || '';
+        const campaign = e.campaign || e.campaign_name || e.campaignName || '';
+        const status = e.status || 'Enviado';
+        const timeAgo = formatTimeAgo(e.received_at || e.timestamp);
+        const isNew = isNewEvent && i === 0;
+
+        return `<div class="live-event-card ${isNew ? 'live-event-new' : ''}">
+            <div class="live-event-dot ${eventType.toLowerCase().includes('sai') ? 'red' : 'green'}"></div>
+            <div class="live-event-body">
+                <div class="live-event-header">
+                    <span class="live-event-type">${esc(eventType)}</span>
+                    ${i < 5 ? '<span class="live-badge-novo">Novo</span>' : ''}
+                </div>
+                <div class="live-event-phone">${esc(phone)}${location ? ` · <span class="live-event-location">${esc(location)}</span>` : ''}</div>
+                ${group ? `<div class="live-event-group">${esc(group)}</div>` : ''}
+                ${campaign ? `<div class="live-event-campaign">${esc(campaign)}</div>` : ''}
+            </div>
+            <div class="live-event-meta">
+                <span class="live-event-status">${esc(status)}</span>
+                <span class="live-event-time">${timeAgo}</span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function formatTimeAgo(iso) {
+    if (!iso) return '--';
+    const now = new Date();
+    const then = new Date(iso);
+    const diffSec = Math.floor((now - then) / 1000);
+    if (diffSec < 60) return `ha ${diffSec}s`;
+    if (diffSec < 3600) return `ha ${Math.floor(diffSec/60)} min`;
+    if (diffSec < 86400) return `ha cerca de ${Math.floor(diffSec/3600)} horas`;
+    return `ha ${Math.floor(diffSec/86400)} dias`;
+}
+
+function copyWebhookUrl() {
+    const url = document.getElementById('webhook-url').textContent;
+    navigator.clipboard.writeText(url);
+    showToast('URL copiada!', 'success');
 }
 
 // ==================== GROUPS MANAGEMENT PAGE ====================

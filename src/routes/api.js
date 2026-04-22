@@ -338,6 +338,30 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         }
     });
 
+    // ==================== LIVE LEAD FEED ====================
+    // In-memory buffer of recent events (last 200)
+    if (!global._leadFeed) global._leadFeed = [];
+
+    // Receive events from n8n webhook
+    router.post('/webhook/feed-leads', (req, res) => {
+        const event = {
+            ...req.body,
+            received_at: new Date().toISOString()
+        };
+        global._leadFeed.unshift(event);
+        if (global._leadFeed.length > 200) global._leadFeed = global._leadFeed.slice(0, 200);
+
+        // Emit via WebSocket for real-time display
+        if (io) io.emit('lead_event', event);
+
+        res.json({ ok: true });
+    });
+
+    // Get current feed (for initial load)
+    router.get('/webhook/feed-leads', (req, res) => {
+        res.json(global._leadFeed || []);
+    });
+
     // Get full campaign groups list (for management UI)
     router.get('/campaign-groups/:instanceName', async (req, res) => {
         try {
