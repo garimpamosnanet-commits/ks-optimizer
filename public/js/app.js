@@ -1445,7 +1445,7 @@ async function fetchLiveEvents() {
             campaign: e.clientName ? `[${e.clientName}]` : '',
             clientName: e.clientName,
             status: 'Enviado',
-            received_at: e.brtTime ? e.brtTime.replace(' ', 'T') + 'Z' : new Date().toISOString(),
+            received_at: e.brtTime ? e.brtTime.replace(' ', 'T') + '-03:00' : new Date().toISOString(),
             type: e.type,
             instance: e.instanceName
         }));
