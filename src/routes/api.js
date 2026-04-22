@@ -344,18 +344,22 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
             const url = `${SE_BASE}/api/v1/whatsappweb/cpl/campaigngroups/${instance}`;
             const resp = await fetch(url, { headers: { 'x-api-key': SE_KEY } });
             const data = await resp.json();
-            // Sum participantCount from all campaign groups
-            let totalMembers = 0;
+            // Sum ONLY groups with hasMetric: true (real operation groups)
+            let totalMembers = 0, validGroups = 0, totalGroups = 0;
             if (Array.isArray(data)) {
                 for (const campaign of data) {
                     if (campaign.groups && Array.isArray(campaign.groups)) {
                         for (const g of campaign.groups) {
-                            totalMembers += g.participantCount || 0;
+                            totalGroups++;
+                            if (g.hasMetric === true) {
+                                totalMembers += g.participantCount || 0;
+                                validGroups++;
+                            }
                         }
                     }
                 }
             }
-            res.json({ totalMembers, campaigns: Array.isArray(data) ? data.length : 0 });
+            res.json({ totalMembers, validGroups, totalGroups, campaigns: Array.isArray(data) ? data.length : 0 });
         } catch (e) {
             res.status(400).json({ error: e.message });
         }

@@ -1619,7 +1619,16 @@ async function loadMasterPanel() {
             // Active = has spend today (no extra API call needed)
             const hasActiveCampaigns = spend > 0;
 
-            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, hasActiveCampaigns };
+            // Fetch members (only hasMetric: true groups)
+            let members = 0;
+            if (instanceName) {
+                try {
+                    const m = await api(`/members/${instanceName}`);
+                    members = m.totalMembers || 0;
+                } catch (e) { /* skip */ }
+            }
+
+            return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, hasActiveCampaigns, members };
         } catch (e) { return null; }
     };
 
@@ -1821,7 +1830,7 @@ async function loadMasterPanel() {
             <td>${cplBarCell(r.cpl, 1.0)}</td>
             <td>${cplBarCell(r.cplReal, 1.3)}</td>
             <td>${retentionCell(r.retention)}</td>
-            <!-- Membros removido -->
+            <td class="master-num-cell ${r.members > 0 ? '' : 'val-muted'}">${r.members > 0 ? formatNumber(r.members) : '--'}</td>
             <td><button class="master-detail-btn" data-idx="${i}" onclick="showClientDetailByIdx(this.dataset.idx)" title="Ver detalhes">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button></td>
