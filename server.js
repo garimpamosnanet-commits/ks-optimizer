@@ -79,7 +79,7 @@ app.get('/login', (req, res) => {
 
 // Auth middleware
 app.use((req, res, next) => {
-    if (req.path === '/login' || req.path === '/login.html' || req.path === '/api/login' || req.path === '/ks-logo.png' || req.path === '/css/style.css') {
+    if (req.path === '/login' || req.path === '/login.html' || req.path === '/api/login' || req.path === '/ks-logo.png' || req.path === '/css/style.css' || req.path === '/api/webhook/feed-leads') {
         return next();
     }
     if (!isAuthenticated(req)) {
