@@ -2370,6 +2370,11 @@ body {
     content: ''; width: 6px; height: 6px; border-radius: 50%;
     background: #22c55e; display: inline-block;
 }
+.live-event-type.exit {
+    background: rgba(239,68,68,0.1);
+    color: #dc2626;
+}
+.live-event-type.exit::before { background: #ef4444; }
 
 .live-badge-novo {
     padding: 3px 10px;

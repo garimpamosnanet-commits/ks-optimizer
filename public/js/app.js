@@ -188,6 +188,12 @@ function navigateTo(page) {
         _masterFirstLoad = true;
     }
 
+    // Stop live feed polling when leaving
+    if (page !== 'live' && _livePollingInterval) {
+        clearInterval(_livePollingInterval);
+        _livePollingInterval = null;
+    }
+
     // Load page-specific data
     if (page === 'live') initLiveFeed();
     if (page === 'groups') initGroupsPage();
@@ -1402,27 +1408,57 @@ async function saveBudget(objectId) {
 // ==================== LIVE FEED ====================
 let _liveEvents = [];
 let _liveFilter = 'today';
+let _liveTotalReceived = 0;
+let _livePollingInterval = null;
+let _liveLastEventSignature = '';
+
+const LIVE_FEED_URL = 'https://n8n-webhook.rjsglz.easypanel.host/webhook/feed-leads-view?limit=500';
 
 async function initLiveFeed() {
-    // Fill webhook URL
+    // Hide webhook-url section (not needed anymore, data comes from n8n directly)
     const urlEl = document.getElementById('webhook-url');
-    if (urlEl) urlEl.textContent = `${window.location.origin}/api/webhook/feed-leads`;
+    if (urlEl) urlEl.textContent = LIVE_FEED_URL;
 
-    // Load existing events
+    // Initial load
+    await fetchLiveEvents();
+
+    // Poll every 5 seconds
+    if (_livePollingInterval) clearInterval(_livePollingInterval);
+    _livePollingInterval = setInterval(() => {
+        if (_currentPage === 'live') fetchLiveEvents();
+    }, 5000);
+}
+
+async function fetchLiveEvents() {
     try {
-        _liveEvents = await api('/webhook/feed-leads');
-    } catch (e) { _liveEvents = []; }
+        const resp = await fetch(LIVE_FEED_URL);
+        const data = await resp.json();
 
-    renderLiveFeed();
+        _liveTotalReceived = data.totalReceived || 0;
+        const newEvents = (data.events || []).map(e => ({
+            // Normalize to our display structure
+            event: e.action === 'add' ? 'Lead_Entrou' : e.action === 'remove' ? 'Lead_Saiu' : e.action,
+            action: e.action,
+            phone: e.participantPhone || '',
+            location: e.state ? `${e.state}${e.ddd ? ', ' + e.ddd : ''}` : '',
+            group: e.groupName || '',
+            campaign: e.clientName ? `[${e.clientName}]` : '',
+            clientName: e.clientName,
+            status: 'Enviado',
+            received_at: e.brtTime ? e.brtTime.replace(' ', 'T') + 'Z' : new Date().toISOString(),
+            type: e.type,
+            instance: e.instanceName
+        }));
 
-    // Listen for real-time events via Socket.IO
-    if (typeof socket !== 'undefined' && !socket.hasLiveListener) {
-        socket.on('lead_event', (event) => {
-            _liveEvents.unshift(event);
-            if (_liveEvents.length > 200) _liveEvents = _liveEvents.slice(0, 200);
-            if (_currentPage === 'live') renderLiveFeed(true);
-        });
-        socket.hasLiveListener = true;
+        // Detect if there are new events (by comparing first event signature)
+        const newSig = newEvents[0] ? (newEvents[0].phone + newEvents[0].received_at) : '';
+        const isNew = newSig && newSig !== _liveLastEventSignature;
+        _liveLastEventSignature = newSig;
+
+        _liveEvents = newEvents;
+        if (_currentPage === 'live') renderLiveFeed(isNew);
+    } catch (e) {
+        console.error('Live feed error:', e);
     }
 }
 
@@ -1508,16 +1544,29 @@ function renderLiveFeed(isNewEvent) {
     populateGroupFilter();
     const filtered = getFilteredLiveEvents();
 
-    // Count stats
-    const entered = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('entr')).length;
-    const exited = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('sai')).length;
-    const fastExits = filtered.filter(e => e.fast_exit || (e.minutes_in_group && e.minutes_in_group < 1440)).length;
-    const totalExits = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('saiu')).length;
+    // Count stats — action: 'add' = entrou, 'remove' = saiu
+    const entered = filtered.filter(e => e.action === 'add').length;
+    const exited = filtered.filter(e => e.action === 'remove').length;
+
+    // Fast exits: quem entrou e saiu em menos de 24h (match phone between add/remove events)
+    const addedMap = new Map();
+    for (const e of _liveEvents) {
+        if (e.action === 'add') {
+            addedMap.set(e.phone + e.group, new Date(e.received_at).getTime());
+        }
+    }
+    const fastExits = filtered.filter(e => {
+        if (e.action !== 'remove') return false;
+        const addedAt = addedMap.get(e.phone + e.group);
+        if (!addedAt) return false;
+        const removedAt = new Date(e.received_at).getTime();
+        return (removedAt - addedAt) < 24 * 60 * 60 * 1000;
+    }).length;
 
     setText('live-count-entered', entered.toString());
     setText('live-count-exited', exited.toString());
     setText('live-count-fast', fastExits.toString());
-    setText('live-count-total-exits', totalExits.toString());
+    setText('live-count-total-exits', exited.toString());
 
     if (filtered.length === 0) {
         feed.innerHTML = `<div class="empty-state">
@@ -1529,23 +1578,24 @@ function renderLiveFeed(isNewEvent) {
     }
 
     feed.innerHTML = filtered.slice(0, 50).map((e, i) => {
+        const isExit = e.action === 'remove';
         const eventType = e.event || e.action || 'Event';
-        const phone = e.phone || e.from || e.number || '';
-        const location = e.location || e.city || '';
-        const group = e.group || e.group_name || e.groupName || '';
-        const campaign = e.campaign || e.campaign_name || e.campaignName || '';
+        const phone = e.phone || '';
+        const location = e.location || '';
+        const group = e.group || '';
+        const campaign = e.campaign || '';
         const status = e.status || 'Enviado';
-        const timeAgo = formatTimeAgo(e.received_at || e.timestamp);
+        const timeAgo = formatTimeAgo(e.received_at);
         const isNew = isNewEvent && i === 0;
 
-        return `<div class="live-event-card ${isNew ? 'live-event-new' : ''}">
-            <div class="live-event-dot ${eventType.toLowerCase().includes('sai') ? 'red' : 'green'}"></div>
+        return `<div class="live-event-card ${isNew ? 'live-event-new' : ''} ${isExit ? 'live-event-exit' : ''}">
+            <div class="live-event-dot ${isExit ? 'red' : ''}"></div>
             <div class="live-event-body">
                 <div class="live-event-header">
-                    <span class="live-event-type">${esc(eventType)}</span>
+                    <span class="live-event-type ${isExit ? 'exit' : ''}">${esc(eventType)}</span>
                     ${i < 5 ? '<span class="live-badge-novo">Novo</span>' : ''}
                 </div>
-                <div class="live-event-phone">${esc(phone)}${location ? ` · <span class="live-event-location">${esc(location)}</span>` : ''}</div>
+                <div class="live-event-phone">${esc(phone)}${location ? ` <span class="live-event-location">${esc(location)}</span>` : ''}</div>
                 ${group ? `<div class="live-event-group">${esc(group)}</div>` : ''}
                 ${campaign ? `<div class="live-event-campaign">${esc(campaign)}</div>` : ''}
             </div>
