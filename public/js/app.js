@@ -1430,34 +1430,94 @@ function setLiveFilter(filter, btn) {
     _liveFilter = filter;
     document.querySelectorAll('.live-pill').forEach(p => p.classList.remove('active'));
     if (btn) btn.classList.add('active');
+
+    const labels = { today: 'Hoje', yesterday: 'Ontem', '7d': '7 dias', '30d': '30 dias', all: 'Todos' };
+    const dateLabel = document.getElementById('live-date-label');
+    if (dateLabel) dateLabel.textContent = labels[filter] || 'Todos';
+
     renderLiveFeed();
+}
+
+function exportLiveLeads() {
+    const filtered = getFilteredLiveEvents();
+    if (filtered.length === 0) {
+        showToast('Nenhum lead para exportar', 'error');
+        return;
+    }
+    const headers = ['Evento', 'Telefone', 'Localizacao', 'Grupo', 'Campanha', 'Status', 'Data'];
+    const rows = filtered.map(e => [
+        e.event || e.action || '',
+        e.phone || e.from || '',
+        e.location || e.city || '',
+        e.group || e.group_name || e.groupName || '',
+        e.campaign || e.campaign_name || e.campaignName || '',
+        e.status || 'Enviado',
+        (e.received_at || e.timestamp || '').slice(0, 19)
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leads_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`${filtered.length} leads exportados`, 'success');
+}
+
+function getFilteredLiveEvents() {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const yesterday = new Date(now - 86400000).toISOString().slice(0, 10);
+    const d7 = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+    const d30 = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+
+    const groupFilter = document.getElementById('live-group-filter')?.value || '';
+    const statusFilter = document.getElementById('live-status-filter')?.value || '';
+
+    return _liveEvents.filter(e => {
+        const eventDate = (e.received_at || e.timestamp || '').slice(0, 10);
+        if (_liveFilter === 'today' && eventDate !== today) return false;
+        if (_liveFilter === 'yesterday' && eventDate !== yesterday) return false;
+        if (_liveFilter === '7d' && eventDate < d7) return false;
+        if (_liveFilter === '30d' && eventDate < d30) return false;
+
+        const group = e.group || e.group_name || e.groupName || '';
+        if (groupFilter && group !== groupFilter) return false;
+
+        const status = e.status || 'Enviado';
+        if (statusFilter && status !== statusFilter) return false;
+
+        return true;
+    });
+}
+
+function populateGroupFilter() {
+    const sel = document.getElementById('live-group-filter');
+    if (!sel) return;
+    const current = sel.value;
+    const groups = [...new Set(_liveEvents.map(e => e.group || e.group_name || e.groupName).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">Todos os grupos</option>' + groups.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    sel.value = current;
 }
 
 function renderLiveFeed(isNewEvent) {
     const feed = document.getElementById('live-feed');
     if (!feed) return;
 
-    // Filter by date
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const yesterday = new Date(now - 86400000).toISOString().slice(0, 10);
-
-    const filtered = _liveEvents.filter(e => {
-        if (_liveFilter === 'all') return true;
-        const eventDate = (e.received_at || e.timestamp || '').slice(0, 10);
-        if (_liveFilter === 'today') return eventDate === today;
-        if (_liveFilter === 'yesterday') return eventDate === yesterday;
-        return true;
-    });
+    populateGroupFilter();
+    const filtered = getFilteredLiveEvents();
 
     // Count stats
     const entered = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('entr')).length;
     const exited = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('sai')).length;
     const fastExits = filtered.filter(e => e.fast_exit || (e.minutes_in_group && e.minutes_in_group < 1440)).length;
+    const totalExits = filtered.filter(e => (e.event || e.action) && String(e.event || e.action).toLowerCase().includes('saiu')).length;
 
     setText('live-count-entered', entered.toString());
     setText('live-count-exited', exited.toString());
     setText('live-count-fast', fastExits.toString());
+    setText('live-count-total-exits', totalExits.toString());
 
     if (filtered.length === 0) {
         feed.innerHTML = `<div class="empty-state">
