@@ -1816,7 +1816,6 @@ async function loadMasterPanel() {
             const hasActiveCampaigns = spend > 0;
 
             // Fetch members (only hasMetric: true groups)
-            let members = 0;
             if (instanceName) {
                 try {
                     const m = await api(`/members/${instanceName}`);
