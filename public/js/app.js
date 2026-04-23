@@ -319,9 +319,13 @@ const ACCOUNT_INSTANCE_MAP = {
 };
 
 // Accounts to HIDE from master (duplicates or old)
-const HIDE_ACCOUNTS = new Set([
-    'act_4260177337539586',  // Hudson duplicado
-]);
+const HIDE_ACCOUNTS = new Set([]);
+
+// Clients with multiple Meta accounts — will be merged into one row
+// Key: client name, Value: array of account_ids to merge
+const MERGE_ACCOUNTS = {
+    'Hudson': ['act_343078820487125', 'act_4260177337539586'],
+};
 let _entriesData = null;
 
 async function loadRealEntries(totalSpend, metaLeads) {
@@ -2095,9 +2099,38 @@ async function loadMasterPanel() {
         }
     }
 
+    // Merge rows that belong to the same client (multiple Meta accounts)
+    const mergeMap = {};
+    for (const [clientName, accountIds] of Object.entries(MERGE_ACCOUNTS)) {
+        for (const accId of accountIds) mergeMap[accId] = accountIds[0]; // point all to first
+    }
+    const mergedRows = [];
+    const merged = {};
+    for (const r of rows) {
+        const mergeKey = mergeMap[r.id];
+        if (mergeKey) {
+            if (merged[mergeKey]) {
+                // Sum into existing
+                const m = merged[mergeKey];
+                m.spend += r.spend;
+                m.leads += r.leads;
+                m.cpl = m.leads > 0 ? m.spend / m.leads : 0;
+                // entries/cplReal recalculated once
+                m.cplReal = m.validLeads > 0 ? m.spend / m.validLeads : 0;
+            } else {
+                merged[mergeKey] = { ...r, id: mergeKey };
+                mergedRows.push(merged[mergeKey]);
+            }
+        } else {
+            mergedRows.push(r);
+        }
+    }
+
     // Sort by spend descending + store globally for detail modal
-    rows.sort((a, b) => b.spend - a.spend);
-    window._masterRows = rows;
+    mergedRows.sort((a, b) => b.spend - a.spend);
+    window._masterRows = mergedRows;
+    rows.length = 0;
+    rows.push(...mergedRows);
 
     // Update KPI cards
     setText('master-total-spend', `R$ ${formatMoney(totalSpend)}`);
