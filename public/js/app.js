@@ -2007,6 +2007,14 @@ async function loadMasterPanel() {
     let totalSpend = 0, totalLeads = 0, totalEntries = 0, totalExits = 0, activeCount = 0;
     const rows = [];
 
+    // Pre-fetch entries cache ONCE (server has already batched all instances)
+    let entriesCache = {};
+    try {
+        const period = _masterDate === 'yesterday' ? 'yesterday' : 'today';
+        const cacheResp = await api(`/entries-cache?period=${period}`);
+        entriesCache = cacheResp.data || {};
+    } catch (e) { console.error('Cache fetch failed:', e); }
+
     // Fetch ALL accounts in parallel (much faster)
     const fetchAccount = async (acc) => {
         try {
@@ -2032,24 +2040,14 @@ async function loadMasterPanel() {
 
             let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0, members = 0;
             const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
-            // RETRY entries up to 5 times (critical data)
-            if (instanceName) {
-                for (let attempt = 0; attempt < 5; attempt++) {
-                    try {
-                        const seData = await api(`/entries/${instanceName}?from=${seFrom}&to=${seTo}`);
-                        const totals = seData.totals || seData.instances?.[0] || {};
-                        entries = totals.organicJoins || 0;
-                        fastExits = totals.fastExits || 0;
-                        validLeads = entries - fastExits;
-                        cplReal = validLeads > 0 ? spend / validLeads : 0;
-                        retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
-                        if (attempt > 0) console.log(`Entries OK ${instanceName} after ${attempt+1} attempts`);
-                        break;
-                    } catch (e) {
-                        console.warn(`Entries attempt ${attempt+1}/5 fail ${instanceName}:`, e.message);
-                        if (attempt < 4) await new Promise(r => setTimeout(r, 1500));
-                    }
-                }
+            // Use server-side cache (instant, zero rate limit)
+            if (instanceName && entriesCache[instanceName]) {
+                const totals = entriesCache[instanceName];
+                entries = totals.organicJoins || 0;
+                fastExits = totals.fastExits || 0;
+                validLeads = entries - fastExits;
+                cplReal = validLeads > 0 ? spend / validLeads : 0;
+                retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
             }
 
             // Active = has spend today (no extra API call needed)
@@ -2068,8 +2066,8 @@ async function loadMasterPanel() {
     };
 
     // Run 5 at a time for speed without hitting rate limits
-    for (let i = 0; i < _accounts.length; i += 3) {
-        const batch = _accounts.slice(i, i + 3);
+    for (let i = 0; i < _accounts.length; i += 5) {
+        const batch = _accounts.slice(i, i + 5);
         const results = await Promise.all(batch.map(fetchAccount));
         for (const r of results) {
             if (r) {

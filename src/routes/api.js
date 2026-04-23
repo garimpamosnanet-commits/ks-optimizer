@@ -321,6 +321,61 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         res.json({ ok: true });
     });
 
+    // ==================== ENTRIES CACHE (server-side batch fetch) ====================
+    // Refresh every 30s, serves all instances from memory
+    if (!global._entriesCache) {
+        global._entriesCache = { data: {}, lastFetch: 0, fetching: false };
+    }
+
+    const INSTANCES_LIST = [
+        'hudson-oliveira','junior-automotiva','achados-secretos','ofertas-da-jenni',
+        'achadinho-da-ivis','achadinhos-do-gilioli','sabaziuscp','promocoes-do-dia',
+        'achadinhos-da-dri','achadinhos-do-borogodo','ze-ofertas','garimpo-da-mamae',
+        'dicas-da-ca','promocoes-do-dia1','promo-da-dinda','achadinhos-para-pobre',
+        'achadinhos-da-tata','achadinhos-imbativel','achadinhos-da-anna',
+        'promo-da-oportunidade','achadinhos-da-li'
+    ];
+
+    async function refreshEntriesCache() {
+        if (global._entriesCache.fetching) return;
+        global._entriesCache.fetching = true;
+        const today = new Date().toISOString().slice(0, 10);
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+        const newData = { today: {}, yesterday: {} };
+        // Sequential to avoid rate limits (21 instances × 2 periods × ~500ms = ~21s)
+        for (const inst of INSTANCES_LIST) {
+            for (const period of [['today', today], ['yesterday', yesterday]]) {
+                try {
+                    const url = `https://production.salesecommerce.com.br/api/v1/whatsappweb/cpl/metrics/summary?instanceName=${inst}&from=${period[1]}&to=${period[1]}`;
+                    const resp = await fetch(url, { headers: { 'x-api-key': 'bot_dfe7011d0bcf2c3e4b26b6be9be125fc' } });
+                    const d = await resp.json();
+                    newData[period[0]][inst] = d.totals || d.instances?.[0] || {};
+                } catch (e) {
+                    newData[period[0]][inst] = newData[period[0]][inst] || {};
+                }
+                await new Promise(r => setTimeout(r, 150));
+            }
+        }
+        global._entriesCache.data = newData;
+        global._entriesCache.lastFetch = Date.now();
+        global._entriesCache.fetching = false;
+        console.log(`[EntriesCache] Refreshed ${INSTANCES_LIST.length} instances`);
+    }
+
+    // Initial + auto-refresh
+    refreshEntriesCache();
+    setInterval(refreshEntriesCache, 60 * 1000); // every 60 seconds
+
+    router.get('/entries-cache', (req, res) => {
+        const period = req.query.period === 'yesterday' ? 'yesterday' : 'today';
+        res.json({
+            data: global._entriesCache.data[period] || {},
+            lastFetch: global._entriesCache.lastFetch,
+            cached: true
+        });
+    });
+
     // ==================== SALESECOMMERCE API (real group entries) ====================
     const SE_BASE = 'https://production.salesecommerce.com.br';
     const SE_KEY = 'bot_dfe7011d0bcf2c3e4b26b6be9be125fc';
