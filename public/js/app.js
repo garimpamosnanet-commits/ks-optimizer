@@ -314,7 +314,14 @@ const ACCOUNT_INSTANCE_MAP = {
     'act_2056603588205127': 'promo-da-oportunidade',  // Carol
     'act_1393268055150638': 'achadinhos-da-tata',     // Tais
     'act_1254904646649965': 'achadinhos-imbativel',   // Eber/Tiko
+    'act_1410465710778958': 'achadinhos-da-tata',     // Cassia/Mariana
+    'act_1393268055150638': 'achadinhos-da-tata',     // Tais
 };
+
+// Accounts to HIDE from master (duplicates or old)
+const HIDE_ACCOUNTS = new Set([
+    'act_4260177337539586',  // Hudson duplicado
+]);
 let _entriesData = null;
 
 async function loadRealEntries(totalSpend, metaLeads) {
@@ -2181,7 +2188,9 @@ async function loadMasterPanel() {
 
     const filteredRows = rows.filter(r => {
         const name = CLIENT_NAMES[r.id];
-        return name !== '__HIDE__';
+        if (name === '__HIDE__') return false;
+        if (typeof HIDE_ACCOUNTS !== 'undefined' && HIDE_ACCOUNTS.has(r.id)) return false;
+        return true;
     });
 
     // Update client count
