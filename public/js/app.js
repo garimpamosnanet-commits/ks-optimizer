@@ -2032,23 +2032,29 @@ async function loadMasterPanel() {
 
             let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0, members = 0;
             const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
+            // RETRY entries up to 3 times (critical data)
             if (instanceName) {
-                try {
-                    const seData = await api(`/entries/${instanceName}?from=${seFrom}&to=${seTo}`);
-                    const totals = seData.totals || seData.instances?.[0] || {};
-                    entries = totals.organicJoins || 0;
-                    fastExits = totals.fastExits || 0;
-                    validLeads = entries - fastExits;
-                    cplReal = validLeads > 0 ? spend / validLeads : 0;
-                    retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
-                    members = totals.totalParticipants || 0;
-                } catch (e) { /* skip */ }
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    try {
+                        const seData = await api(`/entries/${instanceName}?from=${seFrom}&to=${seTo}`);
+                        const totals = seData.totals || seData.instances?.[0] || {};
+                        entries = totals.organicJoins || 0;
+                        fastExits = totals.fastExits || 0;
+                        validLeads = entries - fastExits;
+                        cplReal = validLeads > 0 ? spend / validLeads : 0;
+                        retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
+                        break;
+                    } catch (e) {
+                        if (attempt === 2) console.error(`Entries fail ${instanceName}:`, e.message);
+                        else await new Promise(r => setTimeout(r, 800));
+                    }
+                }
             }
 
             // Active = has spend today (no extra API call needed)
             const hasActiveCampaigns = spend > 0;
 
-            // Fetch members (only hasMetric: true groups)
+            // Fetch members (only hasMetric: true groups) — retry once
             if (instanceName) {
                 try {
                     const m = await api(`/members/${instanceName}`);
