@@ -308,7 +308,7 @@ const ACCOUNT_INSTANCE_MAP = {
     'act_25573157989016239': 'promocoes-do-dia1',     // Paloma
     'act_4036561509942696': 'promo-da-dinda',         // Dani Wal / Wal / Jose Camilo
     'act_2236910550052314': 'achadinhos-da-anna',      // Ana Paula
-    'act_841869274830958': 'achadinhos-para-pobre',   // Jonathan
+    'act_841869274830958': 'achadinhos-para-pobre,achadinho_para_pobres',   // Jonathan (2 instancias)
     'act_2068647333624515': 'sabaziuscp',             // Mario Jr
     'act_1949016345666216': 'dicas-da-ca',            // Carina
     'act_2056603588205127': 'promo-da-oportunidade',  // Carol
@@ -2039,12 +2039,16 @@ async function loadMasterPanel() {
             const cpm = parseFloat(raw.cpm) || 0;
 
             let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0, members = 0;
-            const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
-            // Use server-side cache (instant, zero rate limit)
-            if (instanceName && entriesCache[instanceName]) {
-                const totals = entriesCache[instanceName];
-                entries = totals.organicJoins || 0;
-                fastExits = totals.fastExits || 0;
+            const instanceStr = ACCOUNT_INSTANCE_MAP[acc.id];
+            const instanceName = instanceStr ? instanceStr.split(',')[0] : ''; // primary for members
+            // Use server-side cache (instant, zero rate limit) — supports multiple instances per client
+            if (instanceStr) {
+                const instances = instanceStr.split(',').map(s => s.trim());
+                for (const inst of instances) {
+                    const totals = entriesCache[inst] || {};
+                    entries += totals.organicJoins || 0;
+                    fastExits += totals.fastExits || 0;
+                }
                 validLeads = entries - fastExits;
                 cplReal = validLeads > 0 ? spend / validLeads : 0;
                 retention = entries > 0 ? ((validLeads / entries) * 100) : 0;

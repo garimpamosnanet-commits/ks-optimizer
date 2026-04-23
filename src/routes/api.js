@@ -332,8 +332,8 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         'Melhores-Promocoes','achadinhos-do-gilioli','sabaziuscp','promocoes-do-dia',
         'achadinhos-da-dri','achadinhos-do-borogodo','ze-ofertas','garimpo-da-mamae',
         'dicas-da-ca','promocoes-do-dia1','promo-da-dinda','achadinhos-para-pobre',
-        'achadinhos-da-tata','achadinhos-imbativel','achadinhos-da-anna',
-        'promo-da-oportunidade','achadinhos-da-li'
+        'achadinho_para_pobres','achadinhos-da-tata','achadinhos-imbativel',
+        'achadinhos-da-anna','promo-da-oportunidade','achadinhos-da-li'
     ];
 
     async function refreshEntriesCache() {
