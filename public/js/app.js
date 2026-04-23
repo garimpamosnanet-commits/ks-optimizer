@@ -2032,9 +2032,9 @@ async function loadMasterPanel() {
 
             let entries = 0, fastExits = 0, validLeads = 0, cplReal = 0, retention = 0, members = 0;
             const instanceName = ACCOUNT_INSTANCE_MAP[acc.id];
-            // RETRY entries up to 3 times (critical data)
+            // RETRY entries up to 5 times (critical data)
             if (instanceName) {
-                for (let attempt = 0; attempt < 3; attempt++) {
+                for (let attempt = 0; attempt < 5; attempt++) {
                     try {
                         const seData = await api(`/entries/${instanceName}?from=${seFrom}&to=${seTo}`);
                         const totals = seData.totals || seData.instances?.[0] || {};
@@ -2043,10 +2043,11 @@ async function loadMasterPanel() {
                         validLeads = entries - fastExits;
                         cplReal = validLeads > 0 ? spend / validLeads : 0;
                         retention = entries > 0 ? ((validLeads / entries) * 100) : 0;
+                        if (attempt > 0) console.log(`Entries OK ${instanceName} after ${attempt+1} attempts`);
                         break;
                     } catch (e) {
-                        if (attempt === 2) console.error(`Entries fail ${instanceName}:`, e.message);
-                        else await new Promise(r => setTimeout(r, 800));
+                        console.warn(`Entries attempt ${attempt+1}/5 fail ${instanceName}:`, e.message);
+                        if (attempt < 4) await new Promise(r => setTimeout(r, 1500));
                     }
                 }
             }
@@ -2067,8 +2068,8 @@ async function loadMasterPanel() {
     };
 
     // Run 5 at a time for speed without hitting rate limits
-    for (let i = 0; i < _accounts.length; i += 5) {
-        const batch = _accounts.slice(i, i + 5);
+    for (let i = 0; i < _accounts.length; i += 3) {
+        const batch = _accounts.slice(i, i + 3);
         const results = await Promise.all(batch.map(fetchAccount));
         for (const r of results) {
             if (r) {
