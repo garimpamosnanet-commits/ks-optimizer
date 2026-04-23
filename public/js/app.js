@@ -295,7 +295,7 @@ const ACCOUNT_INSTANCE_MAP = {
     'act_1220899122923055': 'achados-secretos',       // Andre / Larisse
     'act_321696970444959': 'achados-secretos',        // Jorge
     'act_1239747731524637': 'ofertas-da-jenni',       // Jennifer / Dani Wal
-    'act_1720931478425787': 'achadinho-da-ivis',      // Ivone
+    'act_1720931478425787': 'Melhores-Promocoes',     // Fredérico (antiga Ivone)
     'act_1916013155820452': 'achadinhos-do-gilioli',  // Gilioli
     'act_328201254007546': 'sabaziuscp',              // Sabazius
     'act_338281941994189': 'promocoes-do-dia',        // Renata
@@ -1649,7 +1649,7 @@ function initGroupsPage() {
         'act_1220899122923055': 'Andre',
         'act_321696970444959': 'Jorge',
         'act_1239747731524637': 'Jennifer',
-        'act_1720931478425787': 'Ivone',
+        'act_1720931478425787': 'Fredérico',
         'act_1916013155820452': 'Gilioli',
         'act_339589001914046': 'Adriana',
         'act_840398074413162': 'Danielli',
@@ -1835,7 +1835,7 @@ function showClientDetailByIdx(idx) {
         'act_343078820487125': 'Hudson', 'act_4260177337539586': 'Hudson',
         'act_700924378146370': 'Livia Bombo', 'act_1319994062238404': 'Junior',
         'act_1220899122923055': 'Andre', 'act_321696970444959': 'Jorge',
-        'act_1239747731524637': 'Jennifer', 'act_1720931478425787': 'Ivone',
+        'act_1239747731524637': 'Jennifer', 'act_1720931478425787': 'Fredérico',
         'act_1916013155820452': 'Gilioli', 'act_339589001914046': 'Adriana',
         'act_840398074413162': 'Danielli', 'act_6745107755555484': 'Filipe',
         'act_1843590456346828': 'Franci', 'act_25573157989016239': 'Paloma Novo',
@@ -2127,7 +2127,7 @@ async function loadMasterPanel() {
             'act_1220899122923055': 'Andre',
             'act_321696970444959': 'Jorge',
             'act_1239747731524637': 'Jennifer',
-            'act_1720931478425787': 'Ivone',
+            'act_1720931478425787': 'Fredérico',
             'act_1916013155820452': 'Gilioli',
             'act_328201254007546': 'Sabazius',
             'act_338281941994189': 'Renata',
