@@ -339,12 +339,15 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
     async function refreshEntriesCache() {
         if (global._entriesCache.fetching) return;
         global._entriesCache.fetching = true;
-        const today = new Date().toISOString().slice(0, 10);
-        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        // Use BRT (UTC-3) dates
+        const brtNow = new Date(Date.now() - 3 * 60 * 60 * 1000);
+        const today = brtNow.toISOString().slice(0, 10);
+        const yesterday = new Date(brtNow.getTime() - 86400000).toISOString().slice(0, 10);
 
-        const newData = { today: {}, yesterday: {} };
-        // Sequential to avoid rate limits (21 instances × 2 periods × ~500ms = ~21s)
+        const newData = { today: {}, yesterday: {}, members: {} };
+        // Sequential to avoid rate limits
         for (const inst of INSTANCES_LIST) {
+            // Entries today + yesterday
             for (const period of [['today', today], ['yesterday', yesterday]]) {
                 try {
                     const url = `https://production.salesecommerce.com.br/api/v1/whatsappweb/cpl/metrics/summary?instanceName=${inst}&from=${period[1]}&to=${period[1]}`;
@@ -356,11 +359,27 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
                 }
                 await new Promise(r => setTimeout(r, 150));
             }
+            // Members (from campaignGroups, hasMetric: true)
+            try {
+                const url = `https://production.salesecommerce.com.br/api/v1/whatsappweb/cpl/campaigngroups/${inst}`;
+                const resp = await fetch(url, { headers: { 'x-api-key': 'bot_dfe7011d0bcf2c3e4b26b6be9be125fc' } });
+                const data = await resp.json();
+                let total = 0;
+                if (Array.isArray(data)) {
+                    for (const camp of data) {
+                        for (const g of (camp.groups || [])) {
+                            if (g.hasMetric === true) total += g.participantCount || 0;
+                        }
+                    }
+                }
+                newData.members[inst] = total;
+            } catch (e) {}
+            await new Promise(r => setTimeout(r, 150));
         }
         global._entriesCache.data = newData;
         global._entriesCache.lastFetch = Date.now();
         global._entriesCache.fetching = false;
-        console.log(`[EntriesCache] Refreshed ${INSTANCES_LIST.length} instances`);
+        console.log(`[EntriesCache] Refreshed ${INSTANCES_LIST.length} instances (BRT ${today})`);
     }
 
     // Initial + auto-refresh
@@ -371,6 +390,7 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
         const period = req.query.period === 'yesterday' ? 'yesterday' : 'today';
         res.json({
             data: global._entriesCache.data[period] || {},
+            members: global._entriesCache.data.members || {},
             lastFetch: global._entriesCache.lastFetch,
             cached: true
         });

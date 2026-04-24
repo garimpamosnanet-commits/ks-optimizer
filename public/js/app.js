@@ -2013,11 +2013,17 @@ async function loadMasterPanel() {
 
     // Pre-fetch entries cache ONCE (server has already batched all instances)
     let entriesCache = {};
+    let membersCache = {};
     try {
         const period = _masterDate === 'yesterday' ? 'yesterday' : 'today';
         const cacheResp = await api(`/entries-cache?period=${period}`);
         entriesCache = cacheResp.data || {};
+        membersCache = cacheResp.members || {};
     } catch (e) { console.error('Cache fetch failed:', e); }
+
+    // Pre-fetch optimization configs (to know which accounts have KS ON)
+    let allConfigs = [];
+    try { allConfigs = await api('/optimization/configs'); } catch(e) {}
 
     // Fetch ALL accounts in parallel (much faster)
     const fetchAccount = async (acc) => {
@@ -2036,7 +2042,9 @@ async function loadMasterPanel() {
 
             const spend = parseFloat(raw.spend) || 0;
             const leads = extractLeads(raw.actions);
-            if (spend === 0 && leads === 0) return null; // Skip empty accounts
+            // Always show accounts with KS ON (optimization active), even with 0 spend
+            const hasKsOn = allConfigs && allConfigs.some(c => c.account_id === acc.id && c.enabled);
+            if (spend === 0 && leads === 0 && !hasKsOn) return null;
 
             const cpl = leads > 0 ? spend / leads : 0;
             const ctr = parseFloat(raw.ctr) || 0;
@@ -2061,12 +2069,12 @@ async function loadMasterPanel() {
             // Active = has spend today (no extra API call needed)
             const hasActiveCampaigns = spend > 0;
 
-            // Fetch members (only hasMetric: true groups) — retry once
-            if (instanceName) {
-                try {
-                    const m = await api(`/members/${instanceName}`);
-                    members = m.totalMembers || 0;
-                } catch (e) { /* skip */ }
+            // Members from cache — sum all instances for this client
+            if (instanceStr) {
+                const instances = instanceStr.split(',').map(s => s.trim());
+                for (const inst of instances) {
+                    members += membersCache[inst] || 0;
+                }
             }
 
             return { id: acc.id, name: acc.name || acc.id, spend, leads, cpl, entries, fastExits, validLeads, cplReal, retention, ctr, cpm, hasActiveCampaigns, members };
@@ -2223,10 +2231,6 @@ async function loadMasterPanel() {
             </div>
         </div>`;
     }
-
-    // Check which accounts have optimization enabled
-    let allConfigs = [];
-    try { allConfigs = await api('/optimization/configs'); } catch(e) {}
 
     const filteredRows = rows.filter(r => {
         const name = CLIENT_NAMES[r.id];
