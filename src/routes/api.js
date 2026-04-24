@@ -339,27 +339,53 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
     async function refreshEntriesCache() {
         if (global._entriesCache.fetching) return;
         global._entriesCache.fetching = true;
-        // Use BRT (UTC-3) dates
+        // BRT dates
         const brtNow = new Date(Date.now() - 3 * 60 * 60 * 1000);
         const today = brtNow.toISOString().slice(0, 10);
         const yesterday = new Date(brtNow.getTime() - 86400000).toISOString().slice(0, 10);
 
         const newData = { today: {}, yesterday: {}, members: {} };
-        // Sequential to avoid rate limits
-        for (const inst of INSTANCES_LIST) {
-            // Entries today + yesterday
-            for (const period of [['today', today], ['yesterday', yesterday]]) {
-                try {
-                    const url = `https://production.salesecommerce.com.br/api/v1/whatsappweb/cpl/metrics/summary?instanceName=${inst}&from=${period[1]}&to=${period[1]}`;
-                    const resp = await fetch(url, { headers: { 'x-api-key': 'bot_dfe7011d0bcf2c3e4b26b6be9be125fc' } });
-                    const d = await resp.json();
-                    newData[period[0]][inst] = d.totals || d.instances?.[0] || {};
-                } catch (e) {
-                    newData[period[0]][inst] = newData[period[0]][inst] || {};
-                }
-                await new Promise(r => setTimeout(r, 150));
+
+        // STEP 1: Get entries from n8n feed-leads (source of truth — Pedro's summary API is buggy)
+        try {
+            const resp = await fetch('https://n8n-webhook.rjsglz.easypanel.host/webhook/feed-leads-view?limit=5000');
+            const data = await resp.json();
+            const events = data.events || [];
+
+            // Initialize counters for each instance
+            for (const inst of INSTANCES_LIST) {
+                newData.today[inst] = { organicJoins: 0, fastExits: 0 };
+                newData.yesterday[inst] = { organicJoins: 0, fastExits: 0 };
             }
-            // Members (from campaignGroups, hasMetric: true)
+
+            // Aggregate events
+            const addedMap = new Map(); // phone+instance+date -> timestamp of add
+            for (const e of events) {
+                const date = (e.brtTime || '').slice(0, 10);
+                const period = date === today ? 'today' : date === yesterday ? 'yesterday' : null;
+                if (!period) continue;
+
+                const inst = e.instanceName;
+                if (!newData[period][inst]) newData[period][inst] = { organicJoins: 0, fastExits: 0 };
+
+                if (e.action === 'add') {
+                    newData[period][inst].organicJoins++;
+                    addedMap.set(`${e.participantPhone}|${inst}|${date}`, e.brtTime);
+                } else if (e.action === 'remove') {
+                    const addKey = `${e.participantPhone}|${inst}|${date}`;
+                    if (addedMap.has(addKey)) {
+                        // Same day join+leave = fast exit
+                        newData[period][inst].fastExits++;
+                    }
+                }
+            }
+            console.log(`[EntriesCache] ${events.length} events aggregated from feed`);
+        } catch (e) {
+            console.error('[EntriesCache] feed fetch failed:', e.message);
+        }
+
+        // STEP 2: Members from Pedro's API (still works for groups listing)
+        for (const inst of INSTANCES_LIST) {
             try {
                 const url = `https://production.salesecommerce.com.br/api/v1/whatsappweb/cpl/campaigngroups/${inst}`;
                 const resp = await fetch(url, { headers: { 'x-api-key': 'bot_dfe7011d0bcf2c3e4b26b6be9be125fc' } });
@@ -376,10 +402,11 @@ module.exports = function(metaAPI, optimizer, database, io, scheduler) {
             } catch (e) {}
             await new Promise(r => setTimeout(r, 150));
         }
+
         global._entriesCache.data = newData;
         global._entriesCache.lastFetch = Date.now();
         global._entriesCache.fetching = false;
-        console.log(`[EntriesCache] Refreshed ${INSTANCES_LIST.length} instances (BRT ${today})`);
+        console.log(`[EntriesCache] Refreshed (BRT ${today})`);
     }
 
     // Initial + auto-refresh
